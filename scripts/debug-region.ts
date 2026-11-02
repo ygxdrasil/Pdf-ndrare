@@ -1,0 +1,12 @@
+import { readFile } from 'node:fs/promises';
+import { readPage } from '../src/engine/pdf';
+import { codec } from './node-platform';
+import { ocrRegion, closeOcr } from './ocr-node';
+const { raster } = await readPage(new Uint8Array(await readFile('/home/claude/elin-v2/samples/original.pdf')), codec);
+const SC = Math.sqrt(1.15e6 / (raster.w * raster.h));
+const [x0, y0, x1, y1] = process.argv.slice(2).map(Number).map((v) => v / SC);
+const pad = Math.max(25, (y1 - y0) * 1.5);
+console.log('box', [x0, y0, x1, y1].map(Math.round), 'pad', pad.toFixed(0));
+const found = await ocrRegion(raster, { x0: Math.max(0, x0 - pad), y0: Math.max(0, y0 - pad), x1: Math.min(raster.w, x1 + pad), y1: Math.min(raster.h, y1 + pad) });
+for (const l of found) console.log(JSON.stringify(l.text), Object.values(l.box).map((v: any) => Math.round(v)));
+await closeOcr();

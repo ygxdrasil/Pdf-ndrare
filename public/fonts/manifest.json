@@ -1,0 +1,1784 @@
+[
+ {
+  "key": "m:montserrat-300",
+  "family": "Montserrat",
+  "weight": 300,
+  "style": "sans",
+  "file": "Montserrat-300.ttf",
+  "licence": "licenses/montserrat.txt"
+ },
+ {
+  "key": "m:montserrat-400",
+  "family": "Montserrat",
+  "weight": 400,
+  "style": "sans",
+  "file": "Montserrat-400.ttf",
+  "licence": "licenses/montserrat.txt"
+ },
+ {
+  "key": "m:montserrat-500",
+  "family": "Montserrat",
+  "weight": 500,
+  "style": "sans",
+  "file": "Montserrat-500.ttf",
+  "licence": "licenses/montserrat.txt"
+ },
+ {
+  "key": "m:montserrat-600",
+  "family": "Montserrat",
+  "weight": 600,
+  "style": "sans",
+  "file": "Montserrat-600.ttf",
+  "licence": "licenses/montserrat.txt"
+ },
+ {
+  "key": "m:montserrat-700",
+  "family": "Montserrat",
+  "weight": 700,
+  "style": "sans",
+  "file": "Montserrat-700.ttf",
+  "licence": "licenses/montserrat.txt"
+ },
+ {
+  "key": "m:montserrat-800",
+  "family": "Montserrat",
+  "weight": 800,
+  "style": "sans",
+  "file": "Montserrat-800.ttf",
+  "licence": "licenses/montserrat.txt"
+ },
+ {
+  "key": "m:poppins-300",
+  "family": "Poppins",
+  "weight": 300,
+  "style": "sans",
+  "file": "Poppins-300.ttf",
+  "licence": "licenses/poppins.txt"
+ },
+ {
+  "key": "m:poppins-400",
+  "family": "Poppins",
+  "weight": 400,
+  "style": "sans",
+  "file": "Poppins-400.ttf",
+  "licence": "licenses/poppins.txt"
+ },
+ {
+  "key": "m:poppins-500",
+  "family": "Poppins",
+  "weight": 500,
+  "style": "sans",
+  "file": "Poppins-500.ttf",
+  "licence": "licenses/poppins.txt"
+ },
+ {
+  "key": "m:poppins-600",
+  "family": "Poppins",
+  "weight": 600,
+  "style": "sans",
+  "file": "Poppins-600.ttf",
+  "licence": "licenses/poppins.txt"
+ },
+ {
+  "key": "m:poppins-700",
+  "family": "Poppins",
+  "weight": 700,
+  "style": "sans",
+  "file": "Poppins-700.ttf",
+  "licence": "licenses/poppins.txt"
+ },
+ {
+  "key": "m:poppins-800",
+  "family": "Poppins",
+  "weight": 800,
+  "style": "sans",
+  "file": "Poppins-800.ttf",
+  "licence": "licenses/poppins.txt"
+ },
+ {
+  "key": "m:inter-300",
+  "family": "Inter",
+  "weight": 300,
+  "style": "sans",
+  "file": "Inter-300.ttf",
+  "licence": "licenses/inter.txt"
+ },
+ {
+  "key": "m:inter-400",
+  "family": "Inter",
+  "weight": 400,
+  "style": "sans",
+  "file": "Inter-400.ttf",
+  "licence": "licenses/inter.txt"
+ },
+ {
+  "key": "m:inter-500",
+  "family": "Inter",
+  "weight": 500,
+  "style": "sans",
+  "file": "Inter-500.ttf",
+  "licence": "licenses/inter.txt"
+ },
+ {
+  "key": "m:inter-600",
+  "family": "Inter",
+  "weight": 600,
+  "style": "sans",
+  "file": "Inter-600.ttf",
+  "licence": "licenses/inter.txt"
+ },
+ {
+  "key": "m:inter-700",
+  "family": "Inter",
+  "weight": 700,
+  "style": "sans",
+  "file": "Inter-700.ttf",
+  "licence": "licenses/inter.txt"
+ },
+ {
+  "key": "m:inter-800",
+  "family": "Inter",
+  "weight": 800,
+  "style": "sans",
+  "file": "Inter-800.ttf",
+  "licence": "licenses/inter.txt"
+ },
+ {
+  "key": "m:open-sans-300",
+  "family": "Open Sans",
+  "weight": 300,
+  "style": "sans",
+  "file": "OpenSans-300.ttf",
+  "licence": "licenses/open-sans.txt"
+ },
+ {
+  "key": "m:open-sans-400",
+  "family": "Open Sans",
+  "weight": 400,
+  "style": "sans",
+  "file": "OpenSans-400.ttf",
+  "licence": "licenses/open-sans.txt"
+ },
+ {
+  "key": "m:open-sans-500",
+  "family": "Open Sans",
+  "weight": 500,
+  "style": "sans",
+  "file": "OpenSans-500.ttf",
+  "licence": "licenses/open-sans.txt"
+ },
+ {
+  "key": "m:open-sans-600",
+  "family": "Open Sans",
+  "weight": 600,
+  "style": "sans",
+  "file": "OpenSans-600.ttf",
+  "licence": "licenses/open-sans.txt"
+ },
+ {
+  "key": "m:open-sans-700",
+  "family": "Open Sans",
+  "weight": 700,
+  "style": "sans",
+  "file": "OpenSans-700.ttf",
+  "licence": "licenses/open-sans.txt"
+ },
+ {
+  "key": "m:open-sans-800",
+  "family": "Open Sans",
+  "weight": 800,
+  "style": "sans",
+  "file": "OpenSans-800.ttf",
+  "licence": "licenses/open-sans.txt"
+ },
+ {
+  "key": "m:lato-300",
+  "family": "Lato",
+  "weight": 300,
+  "style": "sans",
+  "file": "PAMatchEA6A-300.ttf",
+  "licence": "licenses/lato.txt",
+  "reservedNames": [
+   "Lato"
+  ]
+ },
+ {
+  "key": "m:lato-400",
+  "family": "Lato",
+  "weight": 400,
+  "style": "sans",
+  "file": "PAMatchEA6A-400.ttf",
+  "licence": "licenses/lato.txt",
+  "reservedNames": [
+   "Lato"
+  ]
+ },
+ {
+  "key": "m:lato-700",
+  "family": "Lato",
+  "weight": 700,
+  "style": "sans",
+  "file": "PAMatchEA6A-700.ttf",
+  "licence": "licenses/lato.txt",
+  "reservedNames": [
+   "Lato"
+  ]
+ },
+ {
+  "key": "m:lato-900",
+  "family": "Lato",
+  "weight": 900,
+  "style": "sans",
+  "file": "PAMatchEA6A-900.ttf",
+  "licence": "licenses/lato.txt",
+  "reservedNames": [
+   "Lato"
+  ]
+ },
+ {
+  "key": "m:roboto-300",
+  "family": "Roboto",
+  "weight": 300,
+  "style": "sans",
+  "file": "Roboto-300.ttf",
+  "licence": "licenses/roboto.txt"
+ },
+ {
+  "key": "m:roboto-400",
+  "family": "Roboto",
+  "weight": 400,
+  "style": "sans",
+  "file": "Roboto-400.ttf",
+  "licence": "licenses/roboto.txt"
+ },
+ {
+  "key": "m:roboto-500",
+  "family": "Roboto",
+  "weight": 500,
+  "style": "sans",
+  "file": "Roboto-500.ttf",
+  "licence": "licenses/roboto.txt"
+ },
+ {
+  "key": "m:roboto-600",
+  "family": "Roboto",
+  "weight": 600,
+  "style": "sans",
+  "file": "Roboto-600.ttf",
+  "licence": "licenses/roboto.txt"
+ },
+ {
+  "key": "m:roboto-700",
+  "family": "Roboto",
+  "weight": 700,
+  "style": "sans",
+  "file": "Roboto-700.ttf",
+  "licence": "licenses/roboto.txt"
+ },
+ {
+  "key": "m:roboto-800",
+  "family": "Roboto",
+  "weight": 800,
+  "style": "sans",
+  "file": "Roboto-800.ttf",
+  "licence": "licenses/roboto.txt"
+ },
+ {
+  "key": "m:raleway-300",
+  "family": "Raleway",
+  "weight": 300,
+  "style": "sans",
+  "file": "PAMatch3FC5-300.ttf",
+  "licence": "licenses/raleway.txt",
+  "reservedNames": [
+   "Raleway"
+  ]
+ },
+ {
+  "key": "m:raleway-400",
+  "family": "Raleway",
+  "weight": 400,
+  "style": "sans",
+  "file": "PAMatch3FC5-400.ttf",
+  "licence": "licenses/raleway.txt",
+  "reservedNames": [
+   "Raleway"
+  ]
+ },
+ {
+  "key": "m:raleway-500",
+  "family": "Raleway",
+  "weight": 500,
+  "style": "sans",
+  "file": "PAMatch3FC5-500.ttf",
+  "licence": "licenses/raleway.txt",
+  "reservedNames": [
+   "Raleway"
+  ]
+ },
+ {
+  "key": "m:raleway-600",
+  "family": "Raleway",
+  "weight": 600,
+  "style": "sans",
+  "file": "PAMatch3FC5-600.ttf",
+  "licence": "licenses/raleway.txt",
+  "reservedNames": [
+   "Raleway"
+  ]
+ },
+ {
+  "key": "m:raleway-700",
+  "family": "Raleway",
+  "weight": 700,
+  "style": "sans",
+  "file": "PAMatch3FC5-700.ttf",
+  "licence": "licenses/raleway.txt",
+  "reservedNames": [
+   "Raleway"
+  ]
+ },
+ {
+  "key": "m:raleway-800",
+  "family": "Raleway",
+  "weight": 800,
+  "style": "sans",
+  "file": "PAMatch3FC5-800.ttf",
+  "licence": "licenses/raleway.txt",
+  "reservedNames": [
+   "Raleway"
+  ]
+ },
+ {
+  "key": "m:nunito-sans-300",
+  "family": "Nunito Sans",
+  "weight": 300,
+  "style": "sans",
+  "file": "NunitoSans-300.ttf",
+  "licence": "licenses/nunito-sans.txt"
+ },
+ {
+  "key": "m:nunito-sans-400",
+  "family": "Nunito Sans",
+  "weight": 400,
+  "style": "sans",
+  "file": "NunitoSans-400.ttf",
+  "licence": "licenses/nunito-sans.txt"
+ },
+ {
+  "key": "m:nunito-sans-500",
+  "family": "Nunito Sans",
+  "weight": 500,
+  "style": "sans",
+  "file": "NunitoSans-500.ttf",
+  "licence": "licenses/nunito-sans.txt"
+ },
+ {
+  "key": "m:nunito-sans-600",
+  "family": "Nunito Sans",
+  "weight": 600,
+  "style": "sans",
+  "file": "NunitoSans-600.ttf",
+  "licence": "licenses/nunito-sans.txt"
+ },
+ {
+  "key": "m:nunito-sans-700",
+  "family": "Nunito Sans",
+  "weight": 700,
+  "style": "sans",
+  "file": "NunitoSans-700.ttf",
+  "licence": "licenses/nunito-sans.txt"
+ },
+ {
+  "key": "m:nunito-sans-800",
+  "family": "Nunito Sans",
+  "weight": 800,
+  "style": "sans",
+  "file": "NunitoSans-800.ttf",
+  "licence": "licenses/nunito-sans.txt"
+ },
+ {
+  "key": "m:work-sans-300",
+  "family": "Work Sans",
+  "weight": 300,
+  "style": "sans",
+  "file": "WorkSans-300.ttf",
+  "licence": "licenses/work-sans.txt"
+ },
+ {
+  "key": "m:work-sans-400",
+  "family": "Work Sans",
+  "weight": 400,
+  "style": "sans",
+  "file": "WorkSans-400.ttf",
+  "licence": "licenses/work-sans.txt"
+ },
+ {
+  "key": "m:work-sans-500",
+  "family": "Work Sans",
+  "weight": 500,
+  "style": "sans",
+  "file": "WorkSans-500.ttf",
+  "licence": "licenses/work-sans.txt"
+ },
+ {
+  "key": "m:work-sans-600",
+  "family": "Work Sans",
+  "weight": 600,
+  "style": "sans",
+  "file": "WorkSans-600.ttf",
+  "licence": "licenses/work-sans.txt"
+ },
+ {
+  "key": "m:work-sans-700",
+  "family": "Work Sans",
+  "weight": 700,
+  "style": "sans",
+  "file": "WorkSans-700.ttf",
+  "licence": "licenses/work-sans.txt"
+ },
+ {
+  "key": "m:work-sans-800",
+  "family": "Work Sans",
+  "weight": 800,
+  "style": "sans",
+  "file": "WorkSans-800.ttf",
+  "licence": "licenses/work-sans.txt"
+ },
+ {
+  "key": "m:dm-sans-300",
+  "family": "DM Sans",
+  "weight": 300,
+  "style": "sans",
+  "file": "DMSans-300.ttf",
+  "licence": "licenses/dm-sans.txt"
+ },
+ {
+  "key": "m:dm-sans-400",
+  "family": "DM Sans",
+  "weight": 400,
+  "style": "sans",
+  "file": "DMSans-400.ttf",
+  "licence": "licenses/dm-sans.txt"
+ },
+ {
+  "key": "m:dm-sans-500",
+  "family": "DM Sans",
+  "weight": 500,
+  "style": "sans",
+  "file": "DMSans-500.ttf",
+  "licence": "licenses/dm-sans.txt"
+ },
+ {
+  "key": "m:dm-sans-600",
+  "family": "DM Sans",
+  "weight": 600,
+  "style": "sans",
+  "file": "DMSans-600.ttf",
+  "licence": "licenses/dm-sans.txt"
+ },
+ {
+  "key": "m:dm-sans-700",
+  "family": "DM Sans",
+  "weight": 700,
+  "style": "sans",
+  "file": "DMSans-700.ttf",
+  "licence": "licenses/dm-sans.txt"
+ },
+ {
+  "key": "m:dm-sans-800",
+  "family": "DM Sans",
+  "weight": 800,
+  "style": "sans",
+  "file": "DMSans-800.ttf",
+  "licence": "licenses/dm-sans.txt"
+ },
+ {
+  "key": "m:josefin-sans-300",
+  "family": "Josefin Sans",
+  "weight": 300,
+  "style": "sans",
+  "file": "PAMatchFE33-300.ttf",
+  "licence": "licenses/josefin-sans.txt",
+  "reservedNames": [
+   "Josefin Sans"
+  ]
+ },
+ {
+  "key": "m:josefin-sans-400",
+  "family": "Josefin Sans",
+  "weight": 400,
+  "style": "sans",
+  "file": "PAMatchFE33-400.ttf",
+  "licence": "licenses/josefin-sans.txt",
+  "reservedNames": [
+   "Josefin Sans"
+  ]
+ },
+ {
+  "key": "m:josefin-sans-500",
+  "family": "Josefin Sans",
+  "weight": 500,
+  "style": "sans",
+  "file": "PAMatchFE33-500.ttf",
+  "licence": "licenses/josefin-sans.txt",
+  "reservedNames": [
+   "Josefin Sans"
+  ]
+ },
+ {
+  "key": "m:josefin-sans-600",
+  "family": "Josefin Sans",
+  "weight": 600,
+  "style": "sans",
+  "file": "PAMatchFE33-600.ttf",
+  "licence": "licenses/josefin-sans.txt",
+  "reservedNames": [
+   "Josefin Sans"
+  ]
+ },
+ {
+  "key": "m:josefin-sans-700",
+  "family": "Josefin Sans",
+  "weight": 700,
+  "style": "sans",
+  "file": "PAMatchFE33-700.ttf",
+  "licence": "licenses/josefin-sans.txt",
+  "reservedNames": [
+   "Josefin Sans"
+  ]
+ },
+ {
+  "key": "m:oswald-300",
+  "family": "Oswald",
+  "weight": 300,
+  "style": "sans",
+  "file": "Oswald-300.ttf",
+  "licence": "licenses/oswald.txt"
+ },
+ {
+  "key": "m:oswald-400",
+  "family": "Oswald",
+  "weight": 400,
+  "style": "sans",
+  "file": "Oswald-400.ttf",
+  "licence": "licenses/oswald.txt"
+ },
+ {
+  "key": "m:oswald-500",
+  "family": "Oswald",
+  "weight": 500,
+  "style": "sans",
+  "file": "Oswald-500.ttf",
+  "licence": "licenses/oswald.txt"
+ },
+ {
+  "key": "m:oswald-600",
+  "family": "Oswald",
+  "weight": 600,
+  "style": "sans",
+  "file": "Oswald-600.ttf",
+  "licence": "licenses/oswald.txt"
+ },
+ {
+  "key": "m:oswald-700",
+  "family": "Oswald",
+  "weight": 700,
+  "style": "sans",
+  "file": "Oswald-700.ttf",
+  "licence": "licenses/oswald.txt"
+ },
+ {
+  "key": "m:barlow-300",
+  "family": "Barlow",
+  "weight": 300,
+  "style": "sans",
+  "file": "Barlow-300.ttf",
+  "licence": "licenses/barlow.txt"
+ },
+ {
+  "key": "m:barlow-400",
+  "family": "Barlow",
+  "weight": 400,
+  "style": "sans",
+  "file": "Barlow-400.ttf",
+  "licence": "licenses/barlow.txt"
+ },
+ {
+  "key": "m:barlow-500",
+  "family": "Barlow",
+  "weight": 500,
+  "style": "sans",
+  "file": "Barlow-500.ttf",
+  "licence": "licenses/barlow.txt"
+ },
+ {
+  "key": "m:barlow-600",
+  "family": "Barlow",
+  "weight": 600,
+  "style": "sans",
+  "file": "Barlow-600.ttf",
+  "licence": "licenses/barlow.txt"
+ },
+ {
+  "key": "m:barlow-700",
+  "family": "Barlow",
+  "weight": 700,
+  "style": "sans",
+  "file": "Barlow-700.ttf",
+  "licence": "licenses/barlow.txt"
+ },
+ {
+  "key": "m:barlow-800",
+  "family": "Barlow",
+  "weight": 800,
+  "style": "sans",
+  "file": "Barlow-800.ttf",
+  "licence": "licenses/barlow.txt"
+ },
+ {
+  "key": "m:source-sans-3-300",
+  "family": "Source Sans 3",
+  "weight": 300,
+  "style": "sans",
+  "file": "PAMatch4B64-300.ttf",
+  "licence": "licenses/source-sans-3.txt",
+  "reservedNames": [
+   "Source"
+  ]
+ },
+ {
+  "key": "m:source-sans-3-400",
+  "family": "Source Sans 3",
+  "weight": 400,
+  "style": "sans",
+  "file": "PAMatch4B64-400.ttf",
+  "licence": "licenses/source-sans-3.txt",
+  "reservedNames": [
+   "Source"
+  ]
+ },
+ {
+  "key": "m:source-sans-3-500",
+  "family": "Source Sans 3",
+  "weight": 500,
+  "style": "sans",
+  "file": "PAMatch4B64-500.ttf",
+  "licence": "licenses/source-sans-3.txt",
+  "reservedNames": [
+   "Source"
+  ]
+ },
+ {
+  "key": "m:source-sans-3-600",
+  "family": "Source Sans 3",
+  "weight": 600,
+  "style": "sans",
+  "file": "PAMatch4B64-600.ttf",
+  "licence": "licenses/source-sans-3.txt",
+  "reservedNames": [
+   "Source"
+  ]
+ },
+ {
+  "key": "m:source-sans-3-700",
+  "family": "Source Sans 3",
+  "weight": 700,
+  "style": "sans",
+  "file": "PAMatch4B64-700.ttf",
+  "licence": "licenses/source-sans-3.txt",
+  "reservedNames": [
+   "Source"
+  ]
+ },
+ {
+  "key": "m:source-sans-3-800",
+  "family": "Source Sans 3",
+  "weight": 800,
+  "style": "sans",
+  "file": "PAMatch4B64-800.ttf",
+  "licence": "licenses/source-sans-3.txt",
+  "reservedNames": [
+   "Source"
+  ]
+ },
+ {
+  "key": "m:quicksand-300",
+  "family": "Quicksand",
+  "weight": 300,
+  "style": "sans",
+  "file": "PAMatch469B-300.ttf",
+  "licence": "licenses/quicksand.txt",
+  "reservedNames": [
+   "Quicksand"
+  ]
+ },
+ {
+  "key": "m:quicksand-400",
+  "family": "Quicksand",
+  "weight": 400,
+  "style": "sans",
+  "file": "PAMatch469B-400.ttf",
+  "licence": "licenses/quicksand.txt",
+  "reservedNames": [
+   "Quicksand"
+  ]
+ },
+ {
+  "key": "m:quicksand-500",
+  "family": "Quicksand",
+  "weight": 500,
+  "style": "sans",
+  "file": "PAMatch469B-500.ttf",
+  "licence": "licenses/quicksand.txt",
+  "reservedNames": [
+   "Quicksand"
+  ]
+ },
+ {
+  "key": "m:quicksand-600",
+  "family": "Quicksand",
+  "weight": 600,
+  "style": "sans",
+  "file": "PAMatch469B-600.ttf",
+  "licence": "licenses/quicksand.txt",
+  "reservedNames": [
+   "Quicksand"
+  ]
+ },
+ {
+  "key": "m:quicksand-700",
+  "family": "Quicksand",
+  "weight": 700,
+  "style": "sans",
+  "file": "PAMatch469B-700.ttf",
+  "licence": "licenses/quicksand.txt",
+  "reservedNames": [
+   "Quicksand"
+  ]
+ },
+ {
+  "key": "m:figtree-300",
+  "family": "Figtree",
+  "weight": 300,
+  "style": "sans",
+  "file": "Figtree-300.ttf",
+  "licence": "licenses/figtree.txt"
+ },
+ {
+  "key": "m:figtree-400",
+  "family": "Figtree",
+  "weight": 400,
+  "style": "sans",
+  "file": "Figtree-400.ttf",
+  "licence": "licenses/figtree.txt"
+ },
+ {
+  "key": "m:figtree-500",
+  "family": "Figtree",
+  "weight": 500,
+  "style": "sans",
+  "file": "Figtree-500.ttf",
+  "licence": "licenses/figtree.txt"
+ },
+ {
+  "key": "m:figtree-600",
+  "family": "Figtree",
+  "weight": 600,
+  "style": "sans",
+  "file": "Figtree-600.ttf",
+  "licence": "licenses/figtree.txt"
+ },
+ {
+  "key": "m:figtree-700",
+  "family": "Figtree",
+  "weight": 700,
+  "style": "sans",
+  "file": "Figtree-700.ttf",
+  "licence": "licenses/figtree.txt"
+ },
+ {
+  "key": "m:figtree-800",
+  "family": "Figtree",
+  "weight": 800,
+  "style": "sans",
+  "file": "Figtree-800.ttf",
+  "licence": "licenses/figtree.txt"
+ },
+ {
+  "key": "m:outfit-300",
+  "family": "Outfit",
+  "weight": 300,
+  "style": "sans",
+  "file": "Outfit-300.ttf",
+  "licence": "licenses/outfit.txt"
+ },
+ {
+  "key": "m:outfit-400",
+  "family": "Outfit",
+  "weight": 400,
+  "style": "sans",
+  "file": "Outfit-400.ttf",
+  "licence": "licenses/outfit.txt"
+ },
+ {
+  "key": "m:outfit-500",
+  "family": "Outfit",
+  "weight": 500,
+  "style": "sans",
+  "file": "Outfit-500.ttf",
+  "licence": "licenses/outfit.txt"
+ },
+ {
+  "key": "m:outfit-600",
+  "family": "Outfit",
+  "weight": 600,
+  "style": "sans",
+  "file": "Outfit-600.ttf",
+  "licence": "licenses/outfit.txt"
+ },
+ {
+  "key": "m:outfit-700",
+  "family": "Outfit",
+  "weight": 700,
+  "style": "sans",
+  "file": "Outfit-700.ttf",
+  "licence": "licenses/outfit.txt"
+ },
+ {
+  "key": "m:outfit-800",
+  "family": "Outfit",
+  "weight": 800,
+  "style": "sans",
+  "file": "Outfit-800.ttf",
+  "licence": "licenses/outfit.txt"
+ },
+ {
+  "key": "m:league-spartan-300",
+  "family": "League Spartan",
+  "weight": 300,
+  "style": "sans",
+  "file": "LeagueSpartan-300.ttf",
+  "licence": "licenses/league-spartan.txt"
+ },
+ {
+  "key": "m:league-spartan-400",
+  "family": "League Spartan",
+  "weight": 400,
+  "style": "sans",
+  "file": "LeagueSpartan-400.ttf",
+  "licence": "licenses/league-spartan.txt"
+ },
+ {
+  "key": "m:league-spartan-500",
+  "family": "League Spartan",
+  "weight": 500,
+  "style": "sans",
+  "file": "LeagueSpartan-500.ttf",
+  "licence": "licenses/league-spartan.txt"
+ },
+ {
+  "key": "m:league-spartan-600",
+  "family": "League Spartan",
+  "weight": 600,
+  "style": "sans",
+  "file": "LeagueSpartan-600.ttf",
+  "licence": "licenses/league-spartan.txt"
+ },
+ {
+  "key": "m:league-spartan-700",
+  "family": "League Spartan",
+  "weight": 700,
+  "style": "sans",
+  "file": "LeagueSpartan-700.ttf",
+  "licence": "licenses/league-spartan.txt"
+ },
+ {
+  "key": "m:league-spartan-800",
+  "family": "League Spartan",
+  "weight": 800,
+  "style": "sans",
+  "file": "LeagueSpartan-800.ttf",
+  "licence": "licenses/league-spartan.txt"
+ },
+ {
+  "key": "m:manrope-300",
+  "family": "Manrope",
+  "weight": 300,
+  "style": "sans",
+  "file": "Manrope-300.ttf",
+  "licence": "licenses/manrope.txt"
+ },
+ {
+  "key": "m:manrope-400",
+  "family": "Manrope",
+  "weight": 400,
+  "style": "sans",
+  "file": "Manrope-400.ttf",
+  "licence": "licenses/manrope.txt"
+ },
+ {
+  "key": "m:manrope-500",
+  "family": "Manrope",
+  "weight": 500,
+  "style": "sans",
+  "file": "Manrope-500.ttf",
+  "licence": "licenses/manrope.txt"
+ },
+ {
+  "key": "m:manrope-600",
+  "family": "Manrope",
+  "weight": 600,
+  "style": "sans",
+  "file": "Manrope-600.ttf",
+  "licence": "licenses/manrope.txt"
+ },
+ {
+  "key": "m:manrope-700",
+  "family": "Manrope",
+  "weight": 700,
+  "style": "sans",
+  "file": "Manrope-700.ttf",
+  "licence": "licenses/manrope.txt"
+ },
+ {
+  "key": "m:manrope-800",
+  "family": "Manrope",
+  "weight": 800,
+  "style": "sans",
+  "file": "Manrope-800.ttf",
+  "licence": "licenses/manrope.txt"
+ },
+ {
+  "key": "m:arimo-400",
+  "family": "Arimo",
+  "weight": 400,
+  "style": "sans",
+  "file": "Arimo-400.ttf",
+  "licence": "licenses/arimo.txt"
+ },
+ {
+  "key": "m:arimo-500",
+  "family": "Arimo",
+  "weight": 500,
+  "style": "sans",
+  "file": "Arimo-500.ttf",
+  "licence": "licenses/arimo.txt"
+ },
+ {
+  "key": "m:arimo-600",
+  "family": "Arimo",
+  "weight": 600,
+  "style": "sans",
+  "file": "Arimo-600.ttf",
+  "licence": "licenses/arimo.txt"
+ },
+ {
+  "key": "m:arimo-700",
+  "family": "Arimo",
+  "weight": 700,
+  "style": "sans",
+  "file": "Arimo-700.ttf",
+  "licence": "licenses/arimo.txt"
+ },
+ {
+  "key": "m:archivo-300",
+  "family": "Archivo",
+  "weight": 300,
+  "style": "sans",
+  "file": "Archivo-300.ttf",
+  "licence": "licenses/archivo.txt"
+ },
+ {
+  "key": "m:archivo-400",
+  "family": "Archivo",
+  "weight": 400,
+  "style": "sans",
+  "file": "Archivo-400.ttf",
+  "licence": "licenses/archivo.txt"
+ },
+ {
+  "key": "m:archivo-500",
+  "family": "Archivo",
+  "weight": 500,
+  "style": "sans",
+  "file": "Archivo-500.ttf",
+  "licence": "licenses/archivo.txt"
+ },
+ {
+  "key": "m:archivo-600",
+  "family": "Archivo",
+  "weight": 600,
+  "style": "sans",
+  "file": "Archivo-600.ttf",
+  "licence": "licenses/archivo.txt"
+ },
+ {
+  "key": "m:archivo-700",
+  "family": "Archivo",
+  "weight": 700,
+  "style": "sans",
+  "file": "Archivo-700.ttf",
+  "licence": "licenses/archivo.txt"
+ },
+ {
+  "key": "m:archivo-800",
+  "family": "Archivo",
+  "weight": 800,
+  "style": "sans",
+  "file": "Archivo-800.ttf",
+  "licence": "licenses/archivo.txt"
+ },
+ {
+  "key": "m:rubik-300",
+  "family": "Rubik",
+  "weight": 300,
+  "style": "sans",
+  "file": "Rubik-300.ttf",
+  "licence": "licenses/rubik.txt"
+ },
+ {
+  "key": "m:rubik-400",
+  "family": "Rubik",
+  "weight": 400,
+  "style": "sans",
+  "file": "Rubik-400.ttf",
+  "licence": "licenses/rubik.txt"
+ },
+ {
+  "key": "m:rubik-500",
+  "family": "Rubik",
+  "weight": 500,
+  "style": "sans",
+  "file": "Rubik-500.ttf",
+  "licence": "licenses/rubik.txt"
+ },
+ {
+  "key": "m:rubik-600",
+  "family": "Rubik",
+  "weight": 600,
+  "style": "sans",
+  "file": "Rubik-600.ttf",
+  "licence": "licenses/rubik.txt"
+ },
+ {
+  "key": "m:rubik-700",
+  "family": "Rubik",
+  "weight": 700,
+  "style": "sans",
+  "file": "Rubik-700.ttf",
+  "licence": "licenses/rubik.txt"
+ },
+ {
+  "key": "m:rubik-800",
+  "family": "Rubik",
+  "weight": 800,
+  "style": "sans",
+  "file": "Rubik-800.ttf",
+  "licence": "licenses/rubik.txt"
+ },
+ {
+  "key": "m:mulish-300",
+  "family": "Mulish",
+  "weight": 300,
+  "style": "sans",
+  "file": "Mulish-300.ttf",
+  "licence": "licenses/mulish.txt"
+ },
+ {
+  "key": "m:mulish-400",
+  "family": "Mulish",
+  "weight": 400,
+  "style": "sans",
+  "file": "Mulish-400.ttf",
+  "licence": "licenses/mulish.txt"
+ },
+ {
+  "key": "m:mulish-500",
+  "family": "Mulish",
+  "weight": 500,
+  "style": "sans",
+  "file": "Mulish-500.ttf",
+  "licence": "licenses/mulish.txt"
+ },
+ {
+  "key": "m:mulish-600",
+  "family": "Mulish",
+  "weight": 600,
+  "style": "sans",
+  "file": "Mulish-600.ttf",
+  "licence": "licenses/mulish.txt"
+ },
+ {
+  "key": "m:mulish-700",
+  "family": "Mulish",
+  "weight": 700,
+  "style": "sans",
+  "file": "Mulish-700.ttf",
+  "licence": "licenses/mulish.txt"
+ },
+ {
+  "key": "m:mulish-800",
+  "family": "Mulish",
+  "weight": 800,
+  "style": "sans",
+  "file": "Mulish-800.ttf",
+  "licence": "licenses/mulish.txt"
+ },
+ {
+  "key": "m:bebas-neue-400",
+  "family": "Bebas Neue",
+  "weight": 400,
+  "style": "sans",
+  "file": "BebasNeue-400.ttf",
+  "licence": "licenses/bebas-neue.txt"
+ },
+ {
+  "key": "m:anton-400",
+  "family": "Anton",
+  "weight": 400,
+  "style": "sans",
+  "file": "Anton-400.ttf",
+  "licence": "licenses/anton.txt"
+ },
+ {
+  "key": "m:playfair-display-400",
+  "family": "Playfair Display",
+  "weight": 400,
+  "style": "serif",
+  "file": "PAMatch0C5E-400.ttf",
+  "licence": "licenses/playfair-display.txt",
+  "reservedNames": [
+   "Playfair Display"
+  ]
+ },
+ {
+  "key": "m:playfair-display-500",
+  "family": "Playfair Display",
+  "weight": 500,
+  "style": "serif",
+  "file": "PAMatch0C5E-500.ttf",
+  "licence": "licenses/playfair-display.txt",
+  "reservedNames": [
+   "Playfair Display"
+  ]
+ },
+ {
+  "key": "m:playfair-display-600",
+  "family": "Playfair Display",
+  "weight": 600,
+  "style": "serif",
+  "file": "PAMatch0C5E-600.ttf",
+  "licence": "licenses/playfair-display.txt",
+  "reservedNames": [
+   "Playfair Display"
+  ]
+ },
+ {
+  "key": "m:playfair-display-700",
+  "family": "Playfair Display",
+  "weight": 700,
+  "style": "serif",
+  "file": "PAMatch0C5E-700.ttf",
+  "licence": "licenses/playfair-display.txt",
+  "reservedNames": [
+   "Playfair Display"
+  ]
+ },
+ {
+  "key": "m:playfair-display-800",
+  "family": "Playfair Display",
+  "weight": 800,
+  "style": "serif",
+  "file": "PAMatch0C5E-800.ttf",
+  "licence": "licenses/playfair-display.txt",
+  "reservedNames": [
+   "Playfair Display"
+  ]
+ },
+ {
+  "key": "m:cormorant-garamond-300",
+  "family": "Cormorant Garamond",
+  "weight": 300,
+  "style": "serif",
+  "file": "CormorantGaramond-300.ttf",
+  "licence": "licenses/cormorant-garamond.txt"
+ },
+ {
+  "key": "m:cormorant-garamond-400",
+  "family": "Cormorant Garamond",
+  "weight": 400,
+  "style": "serif",
+  "file": "CormorantGaramond-400.ttf",
+  "licence": "licenses/cormorant-garamond.txt"
+ },
+ {
+  "key": "m:cormorant-garamond-500",
+  "family": "Cormorant Garamond",
+  "weight": 500,
+  "style": "serif",
+  "file": "CormorantGaramond-500.ttf",
+  "licence": "licenses/cormorant-garamond.txt"
+ },
+ {
+  "key": "m:cormorant-garamond-600",
+  "family": "Cormorant Garamond",
+  "weight": 600,
+  "style": "serif",
+  "file": "CormorantGaramond-600.ttf",
+  "licence": "licenses/cormorant-garamond.txt"
+ },
+ {
+  "key": "m:cormorant-garamond-700",
+  "family": "Cormorant Garamond",
+  "weight": 700,
+  "style": "serif",
+  "file": "CormorantGaramond-700.ttf",
+  "licence": "licenses/cormorant-garamond.txt"
+ },
+ {
+  "key": "m:cormorant-300",
+  "family": "Cormorant",
+  "weight": 300,
+  "style": "serif",
+  "file": "Cormorant-300.ttf",
+  "licence": "licenses/cormorant.txt"
+ },
+ {
+  "key": "m:cormorant-400",
+  "family": "Cormorant",
+  "weight": 400,
+  "style": "serif",
+  "file": "Cormorant-400.ttf",
+  "licence": "licenses/cormorant.txt"
+ },
+ {
+  "key": "m:cormorant-500",
+  "family": "Cormorant",
+  "weight": 500,
+  "style": "serif",
+  "file": "Cormorant-500.ttf",
+  "licence": "licenses/cormorant.txt"
+ },
+ {
+  "key": "m:cormorant-600",
+  "family": "Cormorant",
+  "weight": 600,
+  "style": "serif",
+  "file": "Cormorant-600.ttf",
+  "licence": "licenses/cormorant.txt"
+ },
+ {
+  "key": "m:cormorant-700",
+  "family": "Cormorant",
+  "weight": 700,
+  "style": "serif",
+  "file": "Cormorant-700.ttf",
+  "licence": "licenses/cormorant.txt"
+ },
+ {
+  "key": "m:lora-400",
+  "family": "Lora",
+  "weight": 400,
+  "style": "serif",
+  "file": "PAMatch0FEA-400.ttf",
+  "licence": "licenses/lora.txt",
+  "reservedNames": [
+   "Lora"
+  ]
+ },
+ {
+  "key": "m:lora-500",
+  "family": "Lora",
+  "weight": 500,
+  "style": "serif",
+  "file": "PAMatch0FEA-500.ttf",
+  "licence": "licenses/lora.txt",
+  "reservedNames": [
+   "Lora"
+  ]
+ },
+ {
+  "key": "m:lora-600",
+  "family": "Lora",
+  "weight": 600,
+  "style": "serif",
+  "file": "PAMatch0FEA-600.ttf",
+  "licence": "licenses/lora.txt",
+  "reservedNames": [
+   "Lora"
+  ]
+ },
+ {
+  "key": "m:lora-700",
+  "family": "Lora",
+  "weight": 700,
+  "style": "serif",
+  "file": "PAMatch0FEA-700.ttf",
+  "licence": "licenses/lora.txt",
+  "reservedNames": [
+   "Lora"
+  ]
+ },
+ {
+  "key": "m:merriweather-300",
+  "family": "Merriweather",
+  "weight": 300,
+  "style": "serif",
+  "file": "PAMatch0AA7-300.ttf",
+  "licence": "licenses/merriweather.txt",
+  "reservedNames": [
+   "Merriweather"
+  ]
+ },
+ {
+  "key": "m:merriweather-400",
+  "family": "Merriweather",
+  "weight": 400,
+  "style": "serif",
+  "file": "PAMatch0AA7-400.ttf",
+  "licence": "licenses/merriweather.txt",
+  "reservedNames": [
+   "Merriweather"
+  ]
+ },
+ {
+  "key": "m:merriweather-500",
+  "family": "Merriweather",
+  "weight": 500,
+  "style": "serif",
+  "file": "PAMatch0AA7-500.ttf",
+  "licence": "licenses/merriweather.txt",
+  "reservedNames": [
+   "Merriweather"
+  ]
+ },
+ {
+  "key": "m:merriweather-600",
+  "family": "Merriweather",
+  "weight": 600,
+  "style": "serif",
+  "file": "PAMatch0AA7-600.ttf",
+  "licence": "licenses/merriweather.txt",
+  "reservedNames": [
+   "Merriweather"
+  ]
+ },
+ {
+  "key": "m:merriweather-700",
+  "family": "Merriweather",
+  "weight": 700,
+  "style": "serif",
+  "file": "PAMatch0AA7-700.ttf",
+  "licence": "licenses/merriweather.txt",
+  "reservedNames": [
+   "Merriweather"
+  ]
+ },
+ {
+  "key": "m:merriweather-800",
+  "family": "Merriweather",
+  "weight": 800,
+  "style": "serif",
+  "file": "PAMatch0AA7-800.ttf",
+  "licence": "licenses/merriweather.txt",
+  "reservedNames": [
+   "Merriweather"
+  ]
+ },
+ {
+  "key": "m:eb-garamond-400",
+  "family": "EB Garamond",
+  "weight": 400,
+  "style": "serif",
+  "file": "EBGaramond-400.ttf",
+  "licence": "licenses/eb-garamond.txt"
+ },
+ {
+  "key": "m:eb-garamond-500",
+  "family": "EB Garamond",
+  "weight": 500,
+  "style": "serif",
+  "file": "EBGaramond-500.ttf",
+  "licence": "licenses/eb-garamond.txt"
+ },
+ {
+  "key": "m:eb-garamond-600",
+  "family": "EB Garamond",
+  "weight": 600,
+  "style": "serif",
+  "file": "EBGaramond-600.ttf",
+  "licence": "licenses/eb-garamond.txt"
+ },
+ {
+  "key": "m:eb-garamond-700",
+  "family": "EB Garamond",
+  "weight": 700,
+  "style": "serif",
+  "file": "EBGaramond-700.ttf",
+  "licence": "licenses/eb-garamond.txt"
+ },
+ {
+  "key": "m:eb-garamond-800",
+  "family": "EB Garamond",
+  "weight": 800,
+  "style": "serif",
+  "file": "EBGaramond-800.ttf",
+  "licence": "licenses/eb-garamond.txt"
+ },
+ {
+  "key": "m:dm-serif-display-400",
+  "family": "DM Serif Display",
+  "weight": 400,
+  "style": "serif",
+  "file": "PAMatch394D-400.ttf",
+  "licence": "licenses/dm-serif-display.txt",
+  "reservedNames": [
+   "Source"
+  ]
+ },
+ {
+  "key": "m:prata-400",
+  "family": "Prata",
+  "weight": 400,
+  "style": "serif",
+  "file": "Prata-400.ttf",
+  "licence": "licenses/prata.txt"
+ },
+ {
+  "key": "m:cinzel-400",
+  "family": "Cinzel",
+  "weight": 400,
+  "style": "serif",
+  "file": "Cinzel-400.ttf",
+  "licence": "licenses/cinzel.txt"
+ },
+ {
+  "key": "m:cinzel-500",
+  "family": "Cinzel",
+  "weight": 500,
+  "style": "serif",
+  "file": "Cinzel-500.ttf",
+  "licence": "licenses/cinzel.txt"
+ },
+ {
+  "key": "m:cinzel-600",
+  "family": "Cinzel",
+  "weight": 600,
+  "style": "serif",
+  "file": "Cinzel-600.ttf",
+  "licence": "licenses/cinzel.txt"
+ },
+ {
+  "key": "m:cinzel-700",
+  "family": "Cinzel",
+  "weight": 700,
+  "style": "serif",
+  "file": "Cinzel-700.ttf",
+  "licence": "licenses/cinzel.txt"
+ },
+ {
+  "key": "m:cinzel-800",
+  "family": "Cinzel",
+  "weight": 800,
+  "style": "serif",
+  "file": "Cinzel-800.ttf",
+  "licence": "licenses/cinzel.txt"
+ },
+ {
+  "key": "m:libre-caslon-text-400",
+  "family": "Libre Caslon Text",
+  "weight": 400,
+  "style": "serif",
+  "file": "LibreCaslonText-400.ttf",
+  "licence": "licenses/libre-caslon-text.txt"
+ },
+ {
+  "key": "m:libre-caslon-text-500",
+  "family": "Libre Caslon Text",
+  "weight": 500,
+  "style": "serif",
+  "file": "LibreCaslonText-500.ttf",
+  "licence": "licenses/libre-caslon-text.txt"
+ },
+ {
+  "key": "m:libre-caslon-text-600",
+  "family": "Libre Caslon Text",
+  "weight": 600,
+  "style": "serif",
+  "file": "LibreCaslonText-600.ttf",
+  "licence": "licenses/libre-caslon-text.txt"
+ },
+ {
+  "key": "m:libre-caslon-text-700",
+  "family": "Libre Caslon Text",
+  "weight": 700,
+  "style": "serif",
+  "file": "LibreCaslonText-700.ttf",
+  "licence": "licenses/libre-caslon-text.txt"
+ },
+ {
+  "key": "m:bodoni-moda-400",
+  "family": "Bodoni Moda",
+  "weight": 400,
+  "style": "serif",
+  "file": "BodoniModa-400.ttf",
+  "licence": "licenses/bodoni-moda.txt"
+ },
+ {
+  "key": "m:bodoni-moda-500",
+  "family": "Bodoni Moda",
+  "weight": 500,
+  "style": "serif",
+  "file": "BodoniModa-500.ttf",
+  "licence": "licenses/bodoni-moda.txt"
+ },
+ {
+  "key": "m:bodoni-moda-600",
+  "family": "Bodoni Moda",
+  "weight": 600,
+  "style": "serif",
+  "file": "BodoniModa-600.ttf",
+  "licence": "licenses/bodoni-moda.txt"
+ },
+ {
+  "key": "m:bodoni-moda-700",
+  "family": "Bodoni Moda",
+  "weight": 700,
+  "style": "serif",
+  "file": "BodoniModa-700.ttf",
+  "licence": "licenses/bodoni-moda.txt"
+ },
+ {
+  "key": "m:bodoni-moda-800",
+  "family": "Bodoni Moda",
+  "weight": 800,
+  "style": "serif",
+  "file": "BodoniModa-800.ttf",
+  "licence": "licenses/bodoni-moda.txt"
+ },
+ {
+  "key": "m:spectral-300",
+  "family": "Spectral",
+  "weight": 300,
+  "style": "serif",
+  "file": "Spectral-300.ttf",
+  "licence": "licenses/spectral.txt"
+ },
+ {
+  "key": "m:spectral-400",
+  "family": "Spectral",
+  "weight": 400,
+  "style": "serif",
+  "file": "Spectral-400.ttf",
+  "licence": "licenses/spectral.txt"
+ },
+ {
+  "key": "m:spectral-500",
+  "family": "Spectral",
+  "weight": 500,
+  "style": "serif",
+  "file": "Spectral-500.ttf",
+  "licence": "licenses/spectral.txt"
+ },
+ {
+  "key": "m:spectral-600",
+  "family": "Spectral",
+  "weight": 600,
+  "style": "serif",
+  "file": "Spectral-600.ttf",
+  "licence": "licenses/spectral.txt"
+ },
+ {
+  "key": "m:spectral-700",
+  "family": "Spectral",
+  "weight": 700,
+  "style": "serif",
+  "file": "Spectral-700.ttf",
+  "licence": "licenses/spectral.txt"
+ },
+ {
+  "key": "m:spectral-800",
+  "family": "Spectral",
+  "weight": 800,
+  "style": "serif",
+  "file": "Spectral-800.ttf",
+  "licence": "licenses/spectral.txt"
+ },
+ {
+  "key": "m:crimson-text-400",
+  "family": "Crimson Text",
+  "weight": 400,
+  "style": "serif",
+  "file": "CrimsonText-400.ttf",
+  "licence": "licenses/crimson-text.txt"
+ },
+ {
+  "key": "m:crimson-text-600",
+  "family": "Crimson Text",
+  "weight": 600,
+  "style": "serif",
+  "file": "CrimsonText-600.ttf",
+  "licence": "licenses/crimson-text.txt"
+ },
+ {
+  "key": "m:crimson-text-700",
+  "family": "Crimson Text",
+  "weight": 700,
+  "style": "serif",
+  "file": "CrimsonText-700.ttf",
+  "licence": "licenses/crimson-text.txt"
+ },
+ {
+  "key": "m:abril-fatface-400",
+  "family": "Abril Fatface",
+  "weight": 400,
+  "style": "serif",
+  "file": "PAMatch1C48-400.ttf",
+  "licence": "licenses/abril-fatface.txt",
+  "reservedNames": [
+   "Abril",
+   "Abril Fatface"
+  ]
+ },
+ {
+  "key": "m:dancing-script-400",
+  "family": "Dancing Script",
+  "weight": 400,
+  "style": "script",
+  "file": "PAMatchDE32-400.ttf",
+  "licence": "licenses/dancing-script.txt",
+  "reservedNames": [
+   "Dancing Script"
+  ]
+ },
+ {
+  "key": "m:dancing-script-500",
+  "family": "Dancing Script",
+  "weight": 500,
+  "style": "script",
+  "file": "PAMatchDE32-500.ttf",
+  "licence": "licenses/dancing-script.txt",
+  "reservedNames": [
+   "Dancing Script"
+  ]
+ },
+ {
+  "key": "m:dancing-script-600",
+  "family": "Dancing Script",
+  "weight": 600,
+  "style": "script",
+  "file": "PAMatchDE32-600.ttf",
+  "licence": "licenses/dancing-script.txt",
+  "reservedNames": [
+   "Dancing Script"
+  ]
+ },
+ {
+  "key": "m:dancing-script-700",
+  "family": "Dancing Script",
+  "weight": 700,
+  "style": "script",
+  "file": "PAMatchDE32-700.ttf",
+  "licence": "licenses/dancing-script.txt",
+  "reservedNames": [
+   "Dancing Script"
+  ]
+ },
+ {
+  "key": "m:great-vibes-400",
+  "family": "Great Vibes",
+  "weight": 400,
+  "style": "script",
+  "file": "GreatVibes-400.ttf",
+  "licence": "licenses/great-vibes.txt"
+ },
+ {
+  "key": "m:pacifico-400",
+  "family": "Pacifico",
+  "weight": 400,
+  "style": "script",
+  "file": "Pacifico-400.ttf",
+  "licence": "licenses/pacifico.txt"
+ },
+ {
+  "key": "m:caveat-400",
+  "family": "Caveat",
+  "weight": 400,
+  "style": "script",
+  "file": "Caveat-400.ttf",
+  "licence": "licenses/caveat.txt"
+ },
+ {
+  "key": "m:caveat-500",
+  "family": "Caveat",
+  "weight": 500,
+  "style": "script",
+  "file": "Caveat-500.ttf",
+  "licence": "licenses/caveat.txt"
+ },
+ {
+  "key": "m:caveat-600",
+  "family": "Caveat",
+  "weight": 600,
+  "style": "script",
+  "file": "Caveat-600.ttf",
+  "licence": "licenses/caveat.txt"
+ },
+ {
+  "key": "m:caveat-700",
+  "family": "Caveat",
+  "weight": 700,
+  "style": "script",
+  "file": "Caveat-700.ttf",
+  "licence": "licenses/caveat.txt"
+ },
+ {
+  "key": "g:schola-400",
+  "family": "Schola PA",
+  "weight": 400,
+  "style": "serif",
+  "file": "ScholaPA-Regular.ttf",
+  "licence": "licenses/gust-font-license.txt"
+ },
+ {
+  "key": "g:schola-700",
+  "family": "Schola PA",
+  "weight": 700,
+  "style": "serif",
+  "file": "ScholaPA-Bold.ttf",
+  "licence": "licenses/gust-font-license.txt"
+ },
+ {
+  "key": "g:termes-400",
+  "family": "Termes PA",
+  "weight": 400,
+  "style": "serif",
+  "file": "TermesPA-Regular.ttf",
+  "licence": "licenses/gust-font-license.txt"
+ },
+ {
+  "key": "g:termes-700",
+  "family": "Termes PA",
+  "weight": 700,
+  "style": "serif",
+  "file": "TermesPA-Bold.ttf",
+  "licence": "licenses/gust-font-license.txt"
+ },
+ {
+  "key": "g:heros-400",
+  "family": "Heros PA",
+  "weight": 400,
+  "style": "sans",
+  "file": "HerosPA-Regular.ttf",
+  "licence": "licenses/gust-font-license.txt"
+ },
+ {
+  "key": "g:heros-700",
+  "family": "Heros PA",
+  "weight": 700,
+  "style": "sans",
+  "file": "HerosPA-Bold.ttf",
+  "licence": "licenses/gust-font-license.txt"
+ }
+]

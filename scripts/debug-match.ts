@@ -1,0 +1,13 @@
+import { readFile } from 'node:fs/promises';
+import { readPage } from '../src/engine/pdf';
+import { analyzeLine } from '../src/engine/analyze';
+import { matchFont } from '../src/engine/match';
+import { codec, makeLib } from './node-platform';
+const ocr = JSON.parse(await readFile('/home/claude/elin-v2/work/tests/ocr.json', 'utf8'));
+const { raster } = await readPage(new Uint8Array(await readFile('/home/claude/elin-v2/samples/original.pdf')), codec);
+const lib = await makeLib();
+const [id, text, ...fams] = process.argv.slice(2);
+const l = ocr.find((o: any) => o.id === Number(id));
+const info = analyzeLine(raster, l.box);
+const m = await matchFont(lib, [{ info, text }], fams.length ? { families: fams } : {});
+console.log(m.ranking, m.lines.map((f) => ({ size: f.size.toFixed(1), tr: f.tracking.toFixed(2) })));
