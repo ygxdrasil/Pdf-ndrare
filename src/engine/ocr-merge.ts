@@ -20,10 +20,10 @@ export function mergeOcr(...passes: OcrLine[][]): OcrLine[] {
       UNIT_Q.lastIndex = 0;
       const hit = out.findIndex((o) => overlap(o.box, l.box) > 0.4 * Math.min(area(o.box), area(l.box)));
       if (hit >= 0) {
-        // the same spot read twice: keep the first, unless the new reading is clearly fuller
+        // the same spot read twice: keep the first, unless it is only a tiny fragment
         // (a fragment like "By" vs the whole line "Byggnadsarea: 45,0 m²")
         const n = (t: string) => (t.match(/[\p{L}\p{N}]/gu) ?? []).length;
-        if (n(l.text) >= 1.6 * n(out[hit].text) && n(l.text) >= n(out[hit].text) + 3) out[hit] = l;
+        if (n(out[hit].text) <= 3 && n(l.text) >= n(out[hit].text) + 4) out[hit] = l; // only a real fragment is replaced, never a clean line
         continue;
       }
       out.push(l);
