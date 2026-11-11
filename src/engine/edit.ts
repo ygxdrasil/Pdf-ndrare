@@ -500,9 +500,11 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
           // block's family unless another clearly fits this line better
           let fm = m, wSize = size, wTr = tr, wBase = base, wHs = hs, wBold = bold;
           if (oldL.replace(/[^\p{L}\p{N}]/gu, '').length >= 10 && info.noise < 5) { // textured surfaces (kraft) confuse the fit: keep the block's family
-            const own = await matchFont(lib, [{ info, text: oldL }], {});
+            // the plan's style holds here too; a script face is never picked unless the plan says script
+            const own = await matchFont(lib, [{ info, text: oldL }], { style: e.style ?? 'any' });
             const mine = await matchFont(lib, [{ info, text: oldL }], { families: [m.family] });
-            if (own.family !== m.family && own.score > mine.score + 0.05) {
+            const isScript = lib.entries.find((x) => x.family === own.family)?.style === 'script' && e.style !== 'script';
+            if (own.family !== m.family && !isScript && own.score > mine.score + 0.05) {
               fm = own;
               wSize = own.lines[0].size * (e.sizeScale ?? 1); wTr = own.lines[0].tracking * (e.sizeScale ?? 1); wBase = own.lines[0].baseline; wHs = own.lines[0].hs; wBold = own.lines[0].bold * (e.sizeScale ?? 1);
             }
