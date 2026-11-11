@@ -12,6 +12,7 @@ const bytes = new Uint8Array(await readFile(f));
 const isPdf = /\.pdf$/i.test(f);
 const { image, raster } = isPdf ? await readPage(bytes, codec, 0) : await readImage(bytes, 'image/png', codec);
 const ocr = await ocrRaster(raster); await closeOcr();
+if (process.env.SHRINK) for (const l of ocr) { const w = l.words; if (w && w.length >= 2) { const b = w[w.length - 1].box; b.x0 += (b.x1 - b.x0) * +process.env.SHRINK; } } // test: word boxes that miss part of the letters
 console.log('OCR:', ocr.map((o) => `${o.id}:${o.rot ? '↻' : ''}${o.text}`).join(' | '));
 const lib = await makeLib();
 const edits: Edit[] = [];

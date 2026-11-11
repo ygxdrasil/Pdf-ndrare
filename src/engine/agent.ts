@@ -238,6 +238,8 @@ export async function runRequest(env: AgentEnv, page: Raster, ocr: OcrLine[], re
     }
   }
   if (!plan || typeof plan !== 'object') plan = {};
+  // For bug reports: the plan, the page size and the OCR table can be copied from the browser console (F12)
+  try { console.log('[PDF-ändraren plan]', JSON.stringify({ instruction: req.instruction, page: [page.w, page.h], SC, plan, ocr: ocr.map((l) => [l.id, Math.round(l.box.x0), Math.round(l.box.y0), Math.round(l.box.x1), Math.round(l.box.y1), l.text, l.rot ?? 0]) })); } catch { /* ignore */ }
   if (plan.question && !asList(plan.edits).length && !asList(plan.erase).length && !asList(plan.moves).length) {
     usage.ms = Date.now() - t0;
     return { edits: [], summary: '', question: asText(plan.question), usage, notes };

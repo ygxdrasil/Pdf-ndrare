@@ -4,7 +4,7 @@
 //   rest of the line keeps its original pixels (moved sideways if needed).
 // - Otherwise the line/block is erased and set again in the matched font.
 
-import { Box, Raster, RGB, cloneRaster, median, unionBox, padBox, clampBox, px, dist, makeMask, dilate } from './raster';
+import { Box, Raster, RGB, cloneRaster, cropRaster, pasteRaster, median, unionBox, padBox, clampBox, px, dist, makeMask, dilate } from './raster';
 import { analyzeLine, LineInfo } from './analyze';
 import { eraseArea, eraseBox, eraseLine, surfaceModel } from './erase';
 import { matchFont, MatchResult } from './match';
@@ -372,6 +372,39 @@ export function resolveLine(ocr: OcrLine[], l: OcrLine | undefined, oldText: str
  * (optional) is the picture to edit, when earlier new text lives as vector
  * text on top of it rather than in its pixels.
  */
+
+/** Number of ink pixels (clearly different from the surface) in a box of `out`. */
+function inkCount(out: Raster, src: Raster, b: Box, ref: Box): number {
+  const mode = surfaceModel(src, ref).mode;
+  const x0 = Math.max(0, Math.floor(b.x0)), x1 = Math.min(out.w, Math.ceil(b.x1)), y0 = Math.max(0, Math.floor(b.y0)), y1 = Math.min(out.h, Math.ceil(b.y1));
+  let n = 0;
+  for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) if (dist(px(out, x, y), mode) > 70) n++;
+  return n;
+}
+
+/** Share of a new word's letter pixels that lie on ink still left in `out` (old letters that were not erased). */
+async function overlapRatio(out: Raster, src: Raster, it: { text: string; key: string; size: number; tracking: number; hs?: number; bold?: number; x: number; baseline: number }, lib: FontLib, ref: Box): Promise<number> {
+  const font = await lib.load(it.key);
+  const ext = inkExtent(font, it.text, it.size, it.tracking, it.hs ?? 1);
+  const x0 = Math.max(0, Math.floor(it.x + ext.minX - 2)), x1 = Math.min(out.w, Math.ceil(it.x + ext.maxX + 2));
+  const y0 = Math.max(0, Math.floor(it.baseline - it.size * 0.85)), y1 = Math.min(out.h, Math.ceil(it.baseline + it.size * 0.3));
+  const w = x1 - x0, h = y1 - y0;
+  if (w < 2 || h < 2) return 0;
+  const cv = lib.platform.createCanvas(w, h);
+  const ctx = cv.getContext('2d');
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, w, h);
+  drawText(ctx, font, it.text, it.x - x0, it.baseline - y0, it.size, it.tracking, '#fff', it.hs ?? 1, it.bold ?? 0);
+  const d = ctx.getImageData(0, 0, w, h).data;
+  const mode = surfaceModel(src, ref).mode;
+  let glyph = 0, over = 0;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    if (d[(y * w + x) * 4] < 160) continue;
+    glyph++;
+    if (dist(px(out, x0 + x, y0 + y), mode) > 70) over++;
+  }
+  return glyph ? over / glyph : 0;
+}
+
 export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib: FontLib, base?: Raster, opts: { vectorOnly?: boolean } = {}): Promise<Applied> {
   const out = cloneRaster(base ?? src);
   const items: TextItem[] = [];
@@ -596,12 +629,34 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
             modes.push(`words-vector(${p},${s})`);
             continue;
           }
+          // the new word keeps the line's own word gap (a wider word must not eat the space before it)
+          if (preInfo && midInfo && midNew && !sufInfo && align === 'left') {
+            const gap0 = midInfo.inkBox.x0 - preInfo.inkBox.x1;
+            const want = Math.min(Math.max(gap0, space * 0.7), space * 1.4);
+            const have = placeX - preInfo.inkBox.x1;
+            if (have < want * 0.85) placeX += want - have;
+          }
+          const backupBox = clampBox(padBox(unionBox([info.area, ...(midInfo ? [midInfo.area] : []), ...(preInfo ? [preInfo.area] : []), ...(sufInfo ? [sufInfo.area] : [])]), 6), out);
+          const backup = cropRaster(out, backupBox);
           if (midInfo) eraseLine(out, src, midInfo);
           if (preInfo && Math.abs(shiftPre) >= 0.5) { eraseLine(out, src, preInfo); pasteInk(out, src, preInfo, shiftPre); }
           if (sufInfo && Math.abs(shiftSuf) >= 0.5) { eraseLine(out, src, sufInfo); pasteInk(out, src, sufInfo, shiftSuf); }
-          if (midNew) items.push({ text: midNew, key, size: wSize, tracking: wTr, hs: wHs, bold: wBold, x: placeX - ext.minX, baseline: wBase, color: drawColor, raster: true, ref: midInfo ?? preInfo ?? sufInfo ?? info } as any);
-          modes.push(`words(${p},${s})`);
-          continue;
+          const wordItem = midNew ? { text: midNew, key, size: wSize, tracking: wTr, hs: wHs, bold: wBold, x: placeX - ext.minX, baseline: wBase, color: drawColor, raster: true, ref: midInfo ?? preInfo ?? sufInfo ?? info } : null;
+          // Safety net: if old letters are still under the new word (a word box that missed part of them),
+          // undo this and set the whole line instead, which clears everything.
+          // ...also old ink left between the kept words on either side of the new word (a word box that cut the letters)
+          const winL = preInfo ? preInfo.inkBox.x1 + (Math.abs(shiftPre) >= 0.5 ? shiftPre : 0) + 1 : (midInfo ? midInfo.inkBox.x0 - space : info.inkBox.x0);
+          const winR = sufInfo ? sufInfo.inkBox.x0 + (Math.abs(shiftSuf) >= 0.5 ? shiftSuf : 0) - 1 : Math.max(oldX1, placeX + newW) + space * 0.5;
+          const left = !!midInfo && !!wordItem && info.noise < 5 && winR > winL + 2 && inkCount(out, src, { x0: winL, x1: winR, y0: info.inkBox.y0 - 1, y1: info.inkBox.y1 + 1 }, midInfo.area) >= 6;
+          const bad = !!wordItem && info.noise < 5 && (left || (await overlapRatio(out, src, wordItem, lib, (midInfo ?? info).area)) > 0.1);
+          if (bad) {
+            pasteRaster(out, backup, backupBox.x0, backupBox.y0);
+            warnings.push('Ordet lades om som hel rad för att inga rester av den gamla texten skulle stå kvar.');
+          } else {
+            if (wordItem) items.push(wordItem as any);
+            modes.push(`words(${p},${s})`);
+            continue;
+          }
         }
         // ---- whole line ----
         eraseLine(out, src, info);
