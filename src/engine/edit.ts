@@ -636,7 +636,9 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
             const have = placeX - (preInfo.inkBox.x1 + (Math.abs(shiftPre) >= 0.5 ? shiftPre : 0));
             if (have < want * 0.85) placeX += want - have;
           }
-          const backupBox = clampBox(padBox(unionBox([info.area, ...(midInfo ? [midInfo.area] : []), ...(preInfo ? [preInfo.area] : []), ...(sufInfo ? [sufInfo.area] : [])]), 6), out);
+          const ub = unionBox([info.area, ...(midInfo ? [midInfo.area] : []), ...(preInfo ? [preInfo.area] : []), ...(sufInfo ? [sufInfo.area] : [])]);
+          // the moved words and the new word land outside the old areas: the backup must cover them too
+          const backupBox = clampBox(padBox({ ...ub, x0: Math.min(ub.x0, ub.x0 + shiftPre, placeX + ext.minX), x1: Math.max(ub.x1, ub.x1 + shiftSuf, placeX + ext.maxX) }, 6), out);
           const backup = cropRaster(out, backupBox);
           if (midInfo) eraseLine(out, src, midInfo);
           if (preInfo && Math.abs(shiftPre) >= 0.5) { eraseLine(out, src, preInfo); pasteInk(out, src, preInfo, shiftPre); }
