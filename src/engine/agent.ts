@@ -161,7 +161,7 @@ function toolInput(resp: any, name: string): any {
 const SYSTEM_PLAN = `You edit text on flattened print artwork (the whole page is one picture). You do NOT draw: a precise engine erases old lettering and sets new vector text in a matched font, size, colour, spacing and alignment. It can also remove non-text elements ("erase") and move existing elements such as icons with their captions ("moves", exact pixel copies). It cannot draw new pictures or change an icon's drawing, but text INSIDE an icon or badge (e.g. a temperature in a symbol) is text and can be changed: give its box. Your job is to decide WHAT changes, as a plan.
 
 Rules:
-- Change only what the request asks. Everything else stays exactly as it is.
+- Change only what the request asks. Everything else stays exactly as it is. Never fix spelling, dashes or other typos you notice elsewhere on the page, and never "correct" a word because OCR misread it (e.g. OCR "Yttervagg" is printed correctly); no edit may have the same old and new text.
 - One edit = one block of text in ONE style (same typeface, size, colour), e.g. a headline, a paragraph, a caption. Lines in different styles are separate edits.
 - Use the OCR line ids. OCR text can be wrong; write "old" exactly as printed on the page (look at the picture). OCR lines sometimes merge two columns into one line; then use "boxes" for each part instead of the line id.
 - If the new text has the same number of lines as the old block, keep the same line breaks with \\n. If it needs more room, give maxWidth/maxHeight (image px) so it stays inside its panel and clear of other elements; the engine wraps and shrinks to fit.
@@ -369,11 +369,32 @@ export async function runRequest(env: AgentEnv, page: Raster, ocr: OcrLine[], re
           const near = Math.hypot((l.box.x0 + l.box.x1) / 2 - (b.x0 + b.x1) / 2, (l.box.y0 + l.box.y1) / 2 - (b.y0 + b.y1) / 2);
           if (cut && sc >= 0.5 && sc - near / 1000 > score) { score = sc - near / 1000; pick = cut.box; }
         }
+        // The AI's box can sit far from the text (small models point loosely): widen the search
+        // step by step and take the nearest line that reads the same words.
+        if (pick === b && want.trim()) {
+          const bh0 = Math.max(1, b.y1 - b.y0);
+          for (const k of [3, 6]) {
+            const p2 = Math.min(500, Math.max(pad * k, bh0 * 4 * k / 3));
+            const reg2 = { x0: Math.max(0, b.x0 - p2), y0: Math.max(0, b.y0 - p2), x1: Math.min(page.w, b.x1 + p2), y1: Math.min(page.h, b.y1 + p2) };
+            const found2 = await env.ocrRegion(reg2);
+            let best = 0;
+            for (const l of found2) {
+              const cut = resolveLine(found2, l, want);
+              const sc = cut ? similar(cut.text, want) : 0;
+              if (!cut || sc < 0.6) continue;
+              const near = Math.hypot((cut.box.x0 + cut.box.x1) / 2 - (b.x0 + b.x1) / 2, (cut.box.y0 + cut.box.y1) / 2 - (b.y0 + b.y1) / 2);
+              const val = sc - near / 1500;
+              if (val > best) { best = val; pick = cut.box; }
+            }
+            if (pick !== b) break;
+          }
+        }
         // OCR couldn't read it (tiny text in an icon, odd colours): use the
         // letters' own pixels inside Claude's box instead
         if (pick === b) {
           const sn = snapElement(page, b, { text: true });
           const bh = b.y1 - b.y0;
+          if (!sn.box) (e as any).dead = true; // nothing there at all: the AI pointed at empty paper
           if (sn.box && sn.box.y1 - sn.box.y0 >= bh * 0.3 && sn.box.y1 - sn.box.y0 <= bh * 1.8 && sn.box.x1 - sn.box.x0 <= (b.x1 - b.x0) * 1.8) {
             pick = sn.box;
             if (true) {
@@ -402,6 +423,15 @@ export async function runRequest(env: AgentEnv, page: Raster, ocr: OcrLine[], re
       }
       e.boxes = snapped;
     }
+  {
+    const n0 = edits.length;
+    edits = edits.filter((e) => !(e as any).dead);
+    if (edits.length < n0) notes.push(`Att titta på: ${n0 - edits.length} ändring(ar) hoppades över eftersom jag inte hittade texten där AI:n pekade. Markera området runt texten och försök igen.`);
+    if (!edits.length) {
+      usage.ms = Date.now() - t0;
+      return { edits: [], summary: '', question: 'Jag hittade inte texten du vill ändra. Markera en ruta runt den och försök igen.', usage, notes };
+    }
+  }
 
   // Two edits must never rewrite the same text (e.g. a box that snapped onto a
   // line another edit already covers): keep the first, drop the duplicate.
