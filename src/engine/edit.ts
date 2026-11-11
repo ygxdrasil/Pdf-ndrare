@@ -17,6 +17,10 @@ export interface OcrLine {
   text: string;
   box: Box;
   words?: OcrWord[];
+  /** Text that does not run left to right: 90 = reads bottom to top (turned counter-clockwise), -90 = reads top to bottom. */
+  rot?: 90 | -90;
+  /** The OCR engine's own confidence for the line (0-100), when known. */
+  conf?: number;
 }
 
 export interface TextEdit {

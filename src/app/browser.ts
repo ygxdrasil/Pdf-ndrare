@@ -7,6 +7,7 @@ import { flattenOnWhite, type Codec } from '../engine/pdf';
 import type { Box, Raster } from '../engine/raster';
 import type { OcrLine } from '../engine/edit';
 import { mergeOcr } from '../engine/ocr-merge';
+import { ocrRotated } from '../engine/rotate';
 
 export const platform: Platform = {
   createCanvas: (w, h) => {
@@ -283,7 +284,7 @@ async function pass(r: Raster, region: Box, invert: boolean, minConf = 30): Prom
   for (const b of res.data.blocks ?? []) for (const p of b.paragraphs) for (const l of p.lines) {
     const t = l.text.trim();
     if (!t || l.confidence < minConf) continue;
-    lines.push({ id: 0, text: t, box: tb(l.bbox), words: (l.words ?? []).filter((w: any) => w.text.trim()).map((w: any) => ({ text: w.text.trim(), box: tb(w.bbox) })) });
+    lines.push({ id: 0, text: t, box: tb(l.bbox), conf: l.confidence, words: (l.words ?? []).filter((w: any) => w.text.trim()).map((w: any) => ({ text: w.text.trim(), box: tb(w.bbox) })) });
   }
   return lines;
 }
@@ -296,7 +297,10 @@ export async function ocrPage(r: Raster, onStep?: (s: string) => void): Promise<
   const b = await pass(r, all, true);
   // small print is missed on a whole-page pass: read the page again in overlapping tiles, enlarged
   const t = await tilePasses(r, onStep);
-  return mergeOcr(a, b, t);
+  // vertical text (dimension lines): read the page turned each way
+  onStep?.('Läser lodrät text …');
+  const v = await ocrRotated(r, pass);
+  return mergeOcr(a, b, t, v);
 }
 
 /** Overlapping tiles (about 1/3 of the longest side), each read enlarged, in two reading modes. At most 12 tiles. */

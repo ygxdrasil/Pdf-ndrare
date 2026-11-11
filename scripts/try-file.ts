@@ -2,7 +2,8 @@
 // npx tsx scripts/try-file.ts <file.pdf|png|jpg> <out> '<json edits: [{find, new, align?, style?, nth?}]>' [pageIndex]
 import { readFile, writeFile } from 'node:fs/promises';
 import { readPage, readImage, writePdf, writeImage } from '../src/engine/pdf';
-import { applyEdits, Edit } from '../src/engine/edit';
+import { Edit } from '../src/engine/edit';
+import { applyEditsRot as applyEdits } from '../src/engine/rotate';
 import { renderPreview } from '../src/engine/agent';
 import { codec, makeLib } from './node-platform';
 import { ocrRaster, closeOcr } from './ocr-node';

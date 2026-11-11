@@ -3,6 +3,7 @@ import { createCanvas } from '@napi-rs/canvas';
 import type { Raster, Box } from '../src/engine/raster';
 import type { OcrLine } from '../src/engine/edit';
 import { mergeOcr } from '../src/engine/ocr-merge';
+import { ocrRotated } from '../src/engine/rotate';
 
 let worker: any = null;
 async function getWorker() {
@@ -41,7 +42,7 @@ async function pass(r: Raster, region: Box, invert: boolean, minConf = 30): Prom
     const t = l.text.trim();
     if (!t || l.confidence < minConf) continue;
     const words = (l.words ?? []).filter((w: any) => w.text.trim()).map((w: any) => ({ text: w.text.trim(), box: tb(w.bbox) }));
-    lines.push({ id: 0, text: t, box: tb(l.bbox), words });
+    lines.push({ id: 0, text: t, box: tb(l.bbox), words, conf: l.confidence });
   }
   return lines;
 }
@@ -52,7 +53,9 @@ export async function ocrRaster(r: Raster): Promise<OcrLine[]> {
   const b = await pass(r, all, true);
   // small print is missed on a whole-page pass: read the page again in overlapping tiles, enlarged
   const t = await tilePasses(r);
-  return mergeOcr(a, b, t);
+  // vertical text (dimension lines): read the page turned each way
+  const v = await ocrRotated(r, pass);
+  return mergeOcr(a, b, t, v);
 }
 
 /** Overlapping tiles (about 1/4 of the longest side), each read enlarged; the slow part is capped at 12 tiles. */

@@ -3,6 +3,7 @@
 // The heavy pixel work stays in the engine (fast, predictable).
 
 import type { Box, Raster } from './raster';
+import { applyEditsRot } from './rotate';
 import { applyEdits, Applied, Edit, OcrLine, TextEdit, rasterizeInto, resolveLine, similar, inkExtent, snapElement, textRows } from './edit';
 import type { TextItem } from './pdf';
 import { FontLib, drawText } from './fonts';
@@ -544,7 +545,7 @@ export async function runRequest(env: AgentEnv, page: Raster, ocr: OcrLine[], re
     }
     if (bake.length) { base = await renderPreview(env, { raster: base, items: bake } as any, base.w, base.h); prior = keep; }
   }
-  let applied = await mergePrior(env, prior, await applyEdits(page, ocr, edits, env.lib, base, { vectorOnly: env.vectorOnly }));
+  let applied = await mergePrior(env, prior, await applyEditsRot(page, ocr, edits, env.lib, base, { vectorOnly: env.vectorOnly }));
   const firstApplied = applied;
 
   // ---------- 4. check once, fix once ----------
@@ -595,7 +596,7 @@ export async function runRequest(env: AgentEnv, page: Raster, ocr: OcrLine[], re
         if (f.size) (e as any).sizeScale = ((e as any).sizeScale ?? 1) * (f.size === 'smaller' ? 0.93 : 1.07);
         if (f.addLines?.length) for (const id of f.addLines) if (!e.lines.includes(id)) { e.lines.push(id); e.old.push(ocr.find((o) => o.id === id)?.text ?? ''); }
       }
-      applied = await mergePrior(env, prior, await applyEdits(page, ocr, edits, env.lib, base, { vectorOnly: env.vectorOnly }));
+      applied = await mergePrior(env, prior, await applyEditsRot(page, ocr, edits, env.lib, base, { vectorOnly: env.vectorOnly }));
       const n = fixes.filter((f: any) => edits[f.edit]?.kind === 'text').length;
       // look once more: only claim it's fixed when it really is, otherwise tell Elin what to check
       log('Claude kontrollerar rättelsen …');

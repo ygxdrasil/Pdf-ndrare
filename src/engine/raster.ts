@@ -103,3 +103,37 @@ export function maskCount(mask: Mask): number {
   for (const v of mask.m) n += v;
   return n;
 }
+
+/** Turn a picture a quarter turn clockwise (lossless). */
+export function rotateCW(r: Raster): Raster {
+  const out = makeRaster(r.h, r.w);
+  for (let y = 0; y < r.h; y++)
+    for (let x = 0; x < r.w; x++) {
+      const i = (y * r.w + x) * 4, j = (x * out.w + (r.h - 1 - y)) * 4;
+      out.data[j] = r.data[i]; out.data[j + 1] = r.data[i + 1]; out.data[j + 2] = r.data[i + 2]; out.data[j + 3] = r.data[i + 3];
+    }
+  return out;
+}
+
+/** Turn a picture a quarter turn counter-clockwise (lossless). */
+export function rotateCCW(r: Raster): Raster {
+  const out = makeRaster(r.h, r.w);
+  for (let y = 0; y < r.h; y++)
+    for (let x = 0; x < r.w; x++) {
+      const i = (y * r.w + x) * 4, j = ((r.w - 1 - x) * out.w + y) * 4;
+      out.data[j] = r.data[i]; out.data[j + 1] = r.data[i + 1]; out.data[j + 2] = r.data[i + 2]; out.data[j + 3] = r.data[i + 3];
+    }
+  return out;
+}
+
+/** Copy out a part of a picture. */
+export function cropRaster(r: Raster, b: Box): Raster {
+  const w = b.x1 - b.x0, h = b.y1 - b.y0, out = makeRaster(w, h);
+  for (let y = 0; y < h; y++) out.data.set(r.data.subarray(((b.y0 + y) * r.w + b.x0) * 4, ((b.y0 + y) * r.w + b.x0 + w) * 4), y * w * 4);
+  return out;
+}
+
+/** Copy a picture into another at (x0, y0). */
+export function pasteRaster(dst: Raster, src: Raster, x0: number, y0: number) {
+  for (let y = 0; y < src.h; y++) dst.data.set(src.data.subarray(y * src.w * 4, (y + 1) * src.w * 4), ((y0 + y) * dst.w + x0) * 4);
+}
