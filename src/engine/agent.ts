@@ -170,6 +170,8 @@ Rules:
 - Elin may have marked an area: focus on it, but update repeated copies elsewhere (e.g. a 3D mockup of the same panel) only if she asks for "everywhere"/"alla ställen" or the request obviously means all copies.
 - Skip text on strongly angled or curved surfaces, e.g. the narrow side panel or a small badge on the side of a 3D box mockup: the engine sets text straight, so it would look wrong. The mockup's front face (nearly flat) is fine. If you skip something, say so in the summary.
 - Spreading out a row (e.g. after removing two of five icons): compute the row's left and right limits from the original first and last items, then place the remaining items so the gaps between them are equal, same y. Give each move's "to" as the new top-left of its box.
+- Always set "style" (sans, serif or script) by LOOKING at the lettering in the picture; labels and numbers on drawings and plans are almost always sans. Give the same "group" to labels that look alike (e.g. all room areas).
+- When the request says all/every/alla/överallt: go through the WHOLE OCR table, including legends, tables, title blocks and small print, and make one edit for EVERY matching place. Before you answer, count the matches in the table and check you have that many edits. Do not stop at the obvious ones.
 - Product codes, barcodes, legal marks: leave them unless asked.
 - Ask a question only if you really cannot proceed.
 Call the edit_plan tool.`;
@@ -272,6 +274,22 @@ export async function runRequest(env: AgentEnv, page: Raster, ocr: OcrLine[], re
     // keep the text changes, leave icons/pictures where they are
     edits = edits.filter((e) => e.kind === 'text');
     notes.push('Att titta på: Ikoner och bilder flyttas eller tas inte bort i den här versionen, bara texten ändrades.');
+  }
+  // A marked area limits the edits to that area (the AI sometimes points at the wrong place, especially
+  // the small/fast models). Not applied when nothing is marked, or when the request says "all/everywhere".
+  if (req.mark && !/(^|[^\p{L}])(alla|allt|samtliga|överallt|varje|everywhere|all)(?![\p{L}])/iu.test(req.instruction)) {
+    const m = req.mark, pad = 12;
+    const inMark = (b: Box) => b.x0 < m.x1 + pad && b.x1 > m.x0 - pad && b.y0 < m.y1 + pad && b.y1 > m.y0 - pad;
+    const regionsOf = (e: Edit): Box[] => e.kind === 'text'
+      ? [...e.lines.map((id) => ocr.find((o) => o.id === id)?.box).filter((b): b is Box => !!b), ...(e.boxes ?? [])]
+      : [e.box];
+    const before = edits.length;
+    edits = edits.filter((e) => regionsOf(e).some(inMark));
+    if (edits.length < before) notes.push(`Att titta på: ${before - edits.length} ändring(ar) utanför den markerade rutan hoppades över. Skriv "alla" i beskrivningen om du vill ändra överallt.`);
+    if (!edits.length) {
+      usage.ms = Date.now() - t0;
+      return { edits: [], summary: '', question: 'Jag hittade ingen text att ändra inuti rutan du markerade. Markera rutan lite större runt texten, eller skriv "alla" om ändringen ska göras överallt.', usage, notes };
+    }
   }
   if (!edits.length) {
     usage.ms = Date.now() - t0;
