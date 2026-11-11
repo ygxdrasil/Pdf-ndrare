@@ -162,7 +162,7 @@ function fitScaled(platform: Platform, font: any, key: string, line: LineInfo, t
 export async function matchFont(
   lib: FontLib,
   lines: { info: LineInfo; text: string }[],
-  opts: { style?: 'sans' | 'serif' | 'script' | 'any'; families?: string[]; prefer?: string } = {},
+  opts: { style?: 'sans' | 'serif' | 'script' | 'any'; families?: string[]; prefer?: string; preferTol?: number } = {},
 ): Promise<MatchResult> {
   if (!lines.length) throw new Error('Hittade ingen text att matcha typsnittet mot. Markera texten med en ruta och försök igen.');
   let cands: FontEntry[] = lib.entries;
@@ -210,7 +210,7 @@ export async function matchFont(
   let best = results[0];
   if (opts.prefer) {
     const p = results.find((r) => r.key === opts.prefer);
-    if (p && p.score > best.score - 0.04) best = p;
+    if (p && p.score > best.score - (opts.preferTol ?? 0.04)) best = p;
   }
   const e = lib.entry(best.key);
   return { key: best.key, family: e.family, weight: e.weight, score: best.score, lines: best.fits, ranking: results.slice(0, 20).map((r) => ({ key: r.key, score: +r.score.toFixed(3) })) };

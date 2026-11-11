@@ -456,7 +456,8 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
     const boxes = e.boxes?.length ? e.boxes : ocrLines.map((l) => { if (!l) throw new Error('Okänd rad.'); return l.box; });
     const infos = boxes.map((b) => analyzeLine(src, b));
     if (!infos.length) continue; // nothing on the page to work on
-    const touched = unionBox(infos.map((x) => x.area));
+    let touched = unionBox(infos.map((x) => x.area));
+    const grow = (x0: number, x1: number) => { touched = { ...touched, x0: Math.min(touched.x0, x0), x1: Math.max(touched.x1, x1) }; }; // new text may reach beyond the old areas
     const warnings: string[] = [];
     // ---- remove only ----
     if (!e.new.trim()) {
@@ -470,7 +471,7 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
     if (!pairs.length) pairs = infos.slice(0, 1).map((info) => ({ info, text: e.new.split('\n')[0].trim() || 'Aa' }));
     const fam = e.font ? lib.entries.find((x) => x.family.toLowerCase() === e.font!.toLowerCase())?.family : undefined;
     let m = await matchFont(lib, pairs, fam ? { families: [fam] } : { style: e.style ?? 'any' });
-    if (e.weight) { const want = lib.find(m.family, e.weight); if (want) m = await matchFont(lib, pairs, { families: [m.family], prefer: want.key }); }
+    if (e.weight) { const want = lib.find(m.family, e.weight); if (want) m = await matchFont(lib, pairs, { families: [m.family], prefer: want.key, preferTol: 10 }); }
     const font = await lib.load(m.key);
     const fitOf = (k: number) => m.lines[pairs.findIndex((p) => p.info === infos[k])];
     const ss = e.sizeScale ?? 1;
@@ -565,7 +566,7 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
           const keptIdx = [...Array(p).keys(), ...Array.from({ length: s }, (_, k) => ow.length - s + k)].filter((k) => ow[k].replace(/[^\p{L}\p{N}]/gu, '').length >= 3);
           const kk = nb !== undefined && ow[nb].replace(/[^\p{L}\p{N}]/gu, '').length >= 2 ? nb : keptIdx.sort((a, b) => ow[b].length - ow[a].length)[0];
           let key = fm.key;
-          if (kk !== undefined) ({ key, bold: wBold } = await calibrateWeight(src, lib, fm.family, analyzeLine(src, wb[kk]), ow[kk], wSize, wTr, wBase, drawColor, fm.key, wHs, wBold));
+          if (kk !== undefined && !e.weight) ({ key, bold: wBold } = await calibrateWeight(src, lib, fm.family, analyzeLine(src, wb[kk]), ow[kk], wSize, wTr, wBase, drawColor, fm.key, wHs, wBold));
           const kfont = await lib.load(key);
           const wSl = info.slant ?? 0; // italic lines stay italic
           // word gap: as measured between the line's own words, when we can
@@ -690,6 +691,7 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
             warnings.push('Ordet lades om som hel rad för att inga rester av den gamla texten skulle stå kvar.');
           } else {
             if (wordItem) items.push(wordItem as any);
+            grow(Math.min(placeX + ext.minX, preInfo ? preInfo.area.x0 + shiftPre : 1e9) - 6, Math.max(placeX + ext.maxX, sufInfo ? sufInfo.area.x1 + shiftSuf : -1e9) + 6);
             modes.push(`words(${p},${s})`);
             continue;
           }
@@ -726,6 +728,7 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
           }
         }
         const pen2 = align === 'center' ? cx - (ext.minX + ext.maxX) / 2 : align === 'right' ? anchorR - ext.maxX : anchorL - ext.minX;
+        grow(pen2 + ext.minX - 6, pen2 + ext.maxX + 6);
         items.push({ text: newL, key: lkey, size: size * k, tracking: tr * k, hs, bold: lbold * k, slant: info.slant, x: pen2, baseline: base, color: info.color });
         modes.push('line');
       }

@@ -20,18 +20,18 @@ const edits: Edit[] = [];
 for (const e of JSON.parse(spec)) {
   if (e.sub) { // regex substitution on every OCR line it matches: sub = [pattern, replacement]
     const re = new RegExp(e.sub[0], 'g'); let n = 0;
-    for (const x of ocr) { if (!re.test(x.text)) { re.lastIndex = 0; continue; } re.lastIndex = 0; const nt = x.text.replace(re, e.sub[1]); if (nt !== x.text) { edits.push({ kind: 'text', lines: [x.id], old: [x.text], new: nt, align: e.align ?? 'left', style: e.style, group: e.group }); n++; } }
+    for (const x of ocr) { if (!re.test(x.text)) { re.lastIndex = 0; continue; } re.lastIndex = 0; const nt = x.text.replace(re, e.sub[1]); if (nt !== x.text) { edits.push({ kind: 'text', lines: [x.id], old: [x.text], new: nt, align: e.align ?? 'left', style: e.style, group: e.group, weight: e.weight }); n++; } }
     console.log('SUB', e.sub[0], '->', n, 'lines'); continue;
   }
   if (e.finds) { // a paragraph over several OCR lines: finds = start of each line, old = the lines' text
     const ids = e.finds.map((f: string) => ocr.find((o) => o.text.includes(f))?.id);
     if (ids.some((x: any) => x === undefined)) { console.log('NOT FOUND', e.finds.join(' / ')); continue; }
-    edits.push({ kind: 'text', lines: ids, old: e.old, new: e.new, align: e.align ?? 'left', style: e.style, group: e.group }); continue;
+    edits.push({ kind: 'text', lines: ids, old: e.old, new: e.new, align: e.align ?? 'left', style: e.style, group: e.group, weight: e.weight }); continue;
   }
   const h = e.box ? [] : ocr.filter((o) => (e.exact ? o.text.trim() === e.find : o.text.includes(e.find)));
   if (!h.length && !e.box) { console.log('NOT FOUND', e.find); continue; }
-  if (e.box) { const k = e.refW ? raster.w / e.refW : 1; /* box given for a picture e.refW wide */ const bx = { x0: e.box.x0 * k, y0: e.box.y0 * k, x1: e.box.x1 * k, y1: e.box.y1 * k }; edits.push({ kind: 'text', lines: [], boxes: [bx], old: [e.old], new: e.new, align: e.align ?? 'left', style: e.style, group: e.group }); continue; }
-  for (const x of h) edits.push({ kind: 'text', lines: [x.id], old: [e.old ?? x.text], new: e.new, align: e.align ?? 'left', style: e.style, group: e.group });
+  if (e.box) { const k = e.refW ? raster.w / e.refW : 1; /* box given for a picture e.refW wide */ const bx = { x0: e.box.x0 * k, y0: e.box.y0 * k, x1: e.box.x1 * k, y1: e.box.y1 * k }; edits.push({ kind: 'text', lines: [], boxes: [bx], old: [e.old], new: e.new, align: e.align ?? 'left', style: e.style, group: e.group, weight: e.weight }); continue; }
+  for (const x of h) edits.push({ kind: 'text', lines: [x.id], old: [e.old ?? x.text], new: e.new, align: e.align ?? 'left', style: e.style, group: e.group, weight: e.weight });
 }
 const vectorOnly = image.mode === 'render' && (image.ppi ?? 300) < 200;
 console.log('mode', image.mode, 'ppi', image.ppi, 'vectorOnly', vectorOnly);
@@ -39,6 +39,7 @@ const res = await applyEditsRot(raster, ocr, edits, lib, undefined, { vectorOnly
 if (process.env.STRAY) for (let y = 40; y < 90; y++) for (let x = 40; x < 90; x++) { const i = (y * res.raster.w + x) * 4; res.raster.data[i] = 255; res.raster.data[i + 1] = 255; res.raster.data[i + 2] = 255; } // test: damage outside every edit
 console.log('SELFCHECK', JSON.stringify(selfCheck(raster, res, edits)));
 for (const r of res.reports) console.log(r.index, r.mode, r.font, JSON.stringify((edits[r.index] as any).new), r.warnings.join(' '));
+if (process.env.DUMPS) await writeFile(process.env.DUMPS, await codec.encodePng(raster));
 if (process.env.DUMPR) await writeFile(process.env.DUMPR, await codec.encodePng(res.raster)); // debug: the engine's own picture
 const outBytes = isPdf
   ? await writePdf(bytes, image, res.raster, res.items, lib, codec, raster)
