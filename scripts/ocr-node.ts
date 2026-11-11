@@ -52,7 +52,7 @@ export async function ocrRaster(r: Raster): Promise<OcrLine[]> {
   const a = await pass(r, all, false);
   const b = await pass(r, all, true);
   // small print is missed on a whole-page pass: read the page again in overlapping tiles, enlarged (a big, high-resolution render already has the detail)
-  const t = Math.max(r.w, r.h) > 2600 ? [] : await tilePasses(r);
+  const t = Math.max(r.w, r.h) > 2600 && !process.env.OCRTILES ? [] : await tilePasses(r);
   // vertical text (dimension lines): read the page turned each way
   const v = await ocrRotated(r, pass);
   return mergeOcr(a, b, t, v);
