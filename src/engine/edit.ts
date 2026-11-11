@@ -642,6 +642,36 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
           // the moved words and the new word land outside the old areas: the backup must cover them too
           const backupBox = clampBox(padBox({ ...ub, x0: Math.min(ub.x0, ub.x0 + shiftPre, placeX + ext.minX), x1: Math.max(ub.x1, ub.x1 + shiftSuf, placeX + ext.maxX) }, 6), out);
           const backup = cropRaster(out, backupBox);
+          // Changed words with unchanged ones between them ("80 °C vatten i 2" -> "95 °C vatten i 4"): when everything lands
+          // where the old words stood, redo only the changed words and leave the ones between as the original pixels
+          if (!opts.vectorOnly && midInfo && midNew && info.noise < 5) {
+            const oldM = ow.slice(p, ow.length - s), newM = nw.slice(p, nw.length - s);
+            const changed = oldM.length === newM.length ? oldM.map((w, j) => !same(w, newM[j])) : [];
+            if (oldM.length === newM.length && oldM.length >= 3 && Math.abs(delta) < Math.max(1.5, wSize * 0.06) && changed[0] && changed[changed.length - 1] && changed.includes(false)) {
+              const origin = oldX0 - ext.minX;
+              const startOf = (j: number) => origin + (j ? inkExtent(kfont, newM.slice(0, j).join(' ') + ' ', wSize, wTr, wHs, wSl).adv : 0);
+              let ok = true;
+              const runs: [number, number][] = [];
+              for (let j = 0; j < oldM.length && ok; j++) {
+                if (!changed[j]) {
+                  const bi = analyzeLine(src, inLine([midOld[j]]));
+                  const ie = inkExtent(kfont, newM[j], wSize, wTr, wHs, wSl);
+                  if (Math.abs(startOf(j) + ie.minX - bi.inkBox.x0) > Math.max(2, wSize * 0.04)) ok = false;
+                } else if (j === 0 || !changed[j - 1]) runs.push([j, j]); else runs[runs.length - 1][1] = j;
+              }
+              if (ok) {
+                const parts = runs.map(([a, b]) => ({ text: newM.slice(a, b + 1).join(' '), x: startOf(a), info: rows(analyzeLine(src, inLine(midOld.slice(a, b + 1)))) }));
+                const bb = clampBox(padBox(unionBox([info.area, midInfo.area]), 6), out);
+                const bak = cropRaster(out, bb);
+                for (const q of parts) eraseLine(out, src, q.info);
+                const its = parts.map((q) => ({ text: q.text, key, size: wSize, tracking: wTr, hs: wHs, bold: wBold, slant: wSl, x: q.x, baseline: wBase, color: drawColor, raster: true, ref: q.info }));
+                let badP = false;
+                for (let q = 0; q < its.length && !badP; q++) if ((await overlapRatio(out, src, its[q] as any, lib, parts[q].info.area)) > 0.1) badP = true;
+                if (!badP) { items.push(...(its as any[])); modes.push(`words-parts(${parts.length})`); continue; }
+                pasteRaster(out, bak, bb.x0, bb.y0);
+              }
+            }
+          }
           if (midInfo) eraseLine(out, src, midInfo);
           if (preInfo && Math.abs(shiftPre) >= 0.5) { eraseLine(out, src, preInfo); pasteInk(out, src, preInfo, shiftPre); }
           if (sufInfo && Math.abs(shiftSuf) >= 0.5) { eraseLine(out, src, sufInfo); pasteInk(out, src, sufInfo, shiftSuf); }
