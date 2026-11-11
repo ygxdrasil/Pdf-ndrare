@@ -18,7 +18,14 @@ export function mergeOcr(...passes: OcrLine[][]): OcrLine[] {
       if (letters < 2 || letters < l.text.replace(/\s/g, '').length * 0.5) continue;
       if (UNIT_Q.test(l.text)) { UNIT_Q.lastIndex = 0; l.text = fixUnits(l.text); for (const w of l.words ?? []) w.text = fixUnits(w.text); }
       UNIT_Q.lastIndex = 0;
-      if (out.some((o) => overlap(o.box, l.box) > 0.4 * Math.min(area(o.box), area(l.box)))) continue;
+      const hit = out.findIndex((o) => overlap(o.box, l.box) > 0.4 * Math.min(area(o.box), area(l.box)));
+      if (hit >= 0) {
+        // the same spot read twice: keep the first, unless the new reading is clearly fuller
+        // (a fragment like "By" vs the whole line "Byggnadsarea: 45,0 m²")
+        const n = (t: string) => (t.match(/[\p{L}\p{N}]/gu) ?? []).length;
+        if (n(l.text) >= 1.6 * n(out[hit].text) && n(l.text) >= n(out[hit].text) + 3) out[hit] = l;
+        continue;
+      }
       out.push(l);
     }
   out.sort((a, b) => a.box.y0 - b.box.y0 || a.box.x0 - b.box.x0);

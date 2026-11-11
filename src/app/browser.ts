@@ -259,7 +259,7 @@ async function getWorker() {
   return worker;
 }
 
-async function pass(r: Raster, region: Box, invert: boolean): Promise<OcrLine[]> {
+async function pass(r: Raster, region: Box, invert: boolean, minConf = 30): Promise<OcrLine[]> {
   // small pictures are enlarged for OCR; big (high-resolution) ones are not
   const rw = region.x1 - region.x0, rh = region.y1 - region.y0;
   const small = rw * rh < 0.25 * r.w * r.h; // a close-up: enlarge more, tiny text needs it
@@ -282,7 +282,7 @@ async function pass(r: Raster, region: Box, invert: boolean): Promise<OcrLine[]>
   const lines: OcrLine[] = [];
   for (const b of res.data.blocks ?? []) for (const p of b.paragraphs) for (const l of p.lines) {
     const t = l.text.trim();
-    if (!t || l.confidence < 30) continue;
+    if (!t || l.confidence < minConf) continue;
     lines.push({ id: 0, text: t, box: tb(l.bbox), words: (l.words ?? []).filter((w: any) => w.text.trim()).map((w: any) => ({ text: w.text.trim(), box: tb(w.bbox) })) });
   }
   return lines;
@@ -294,7 +294,31 @@ export async function ocrPage(r: Raster, onStep?: (s: string) => void): Promise<
   const a = await pass(r, all, false);
   onStep?.('Läser texten på sidan (2/2) …');
   const b = await pass(r, all, true);
-  return mergeOcr(a, b);
+  // small print is missed on a whole-page pass: read the page again in overlapping tiles, enlarged
+  const t = await tilePasses(r, onStep);
+  return mergeOcr(a, b, t);
+}
+
+/** Overlapping tiles (about 1/3 of the longest side), each read enlarged, in two reading modes. At most 12 tiles. */
+async function tilePasses(r: Raster, onStep?: (s: string) => void): Promise<OcrLine[]> {
+  const side = Math.max(400, Math.ceil(Math.max(r.w, r.h) / 3.2));
+  const step = Math.round(side * 0.82);
+  const xs: number[] = [], ys: number[] = [];
+  for (let x = 0; x < Math.max(1, r.w - side * 0.2); x += step) xs.push(Math.min(x, Math.max(0, r.w - side)));
+  for (let y = 0; y < Math.max(1, r.h - side * 0.2); y += step) ys.push(Math.min(y, Math.max(0, r.h - side)));
+  const boxes: Box[] = [];
+  for (const y of ys) for (const x of xs) if (boxes.length < 12) boxes.push({ x0: x, y0: y, x1: Math.min(r.w, x + side), y1: Math.min(r.h, y + side) });
+  const out: OcrLine[] = [];
+  const wk = await getWorker();
+  let k = 0;
+  try {
+    // sparse text (11) finds loose labels; block mode (6) finds small lines inside boxes and tables
+    for (const mode of ['11', '6']) {
+      await wk.setParameters({ tessedit_pageseg_mode: mode as any });
+      for (const box of boxes) { onStep?.(`Läser liten text (${++k}/${boxes.length * 2}) …`); out.push(...(await pass(r, box, false, 30))); }
+    }
+  } finally { await wk.setParameters({ tessedit_pageseg_mode: '11' as any }); }
+  return out;
 }
 
 export async function ocrRegion(r: Raster, box: Box): Promise<OcrLine[]> {
