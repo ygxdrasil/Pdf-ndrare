@@ -8,6 +8,22 @@ const overlap = (a: Box, b: Box) => area({ x0: Math.max(a.x0, b.x0), y0: Math.ma
 const UNIT_Q = /(\d\s*)((?:[cdkm]?)m)\?(?![\p{L}\p{N}])/gu;
 const fixUnits = (t: string) => t.replace(UNIT_Q, '$1$2²');
 
+/** "50m²" read as one word -> "50" + "m²" (own boxes), so a number and its unit can be changed separately. */
+const NUM_UNIT = /^(\d[\d.,]*)((?:[cdkm]?)m²)$/u;
+function splitUnitWords(l: OcrLine) {
+  if (!l.words?.some((w) => NUM_UNIT.test(w.text))) return;
+  const words: NonNullable<OcrLine['words']> = [];
+  for (const w of l.words) {
+    const m = NUM_UNIT.exec(w.text);
+    if (!m) { words.push(w); continue; }
+    // widths in "characters": digits 1 each, unit letters 1 each, the superscript about half
+    const nw = m[1].length, uw = m[2].length - 0.5, x = w.box.x0 + ((w.box.x1 - w.box.x0) * nw) / (nw + uw);
+    words.push({ text: m[1], box: { ...w.box, x1: x - 1 } }, { text: m[2], box: { ...w.box, x0: x } });
+  }
+  l.words = words;
+  l.text = l.text.replace(/(\d)((?:[cdkm]?)m²)/gu, '$1 $2');
+}
+
 /** Merge OCR passes (normal + inverted). Keeps the first pass's line where both found one. */
 export function mergeOcr(...passes: OcrLine[][]): OcrLine[] {
   const out: OcrLine[] = [];
@@ -18,6 +34,7 @@ export function mergeOcr(...passes: OcrLine[][]): OcrLine[] {
       if (letters < 2 || letters < l.text.replace(/\s/g, '').length * 0.5) continue;
       if (UNIT_Q.test(l.text)) { UNIT_Q.lastIndex = 0; l.text = fixUnits(l.text); for (const w of l.words ?? []) w.text = fixUnits(w.text); }
       UNIT_Q.lastIndex = 0;
+      splitUnitWords(l);
       const hit = out.findIndex((o) => overlap(o.box, l.box) > 0.4 * Math.min(area(o.box), area(l.box)));
       if (hit >= 0) {
         // the same spot read twice: keep the first, unless it is only a tiny fragment
