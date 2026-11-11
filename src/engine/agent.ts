@@ -186,14 +186,37 @@ async function mergePrior(env: AgentEnv, prior: TextItem[] | undefined, a: Appli
   return { ...a, items: [...prior, ...a.items] };
 }
 
+
+/** Browser only: keep the latest run's capture and show a small "Spara felsökning" button that downloads it. */
+function publishDump(d: any) {
+  try {
+    (globalThis as any).__pdfDump = d;
+    if (typeof document === 'undefined' || document.getElementById('pdf-dump-btn')) return;
+    const b = document.createElement('button');
+    b.id = 'pdf-dump-btn';
+    b.textContent = 'Spara felsökning';
+    Object.assign(b.style, { position: 'fixed', left: '8px', bottom: '8px', zIndex: '99999', padding: '6px 10px', fontSize: '12px', opacity: '0.85', cursor: 'pointer' });
+    b.onclick = () => {
+      const blob = new Blob([JSON.stringify((globalThis as any).__pdfDump)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = 'felsokning.json'; a.click();
+    };
+    document.body.appendChild(b);
+  } catch { /* not in a browser */ }
+}
+
 export async function runRequest(env: AgentEnv, page: Raster, ocr: OcrLine[], req: Request, base?: Raster, prior?: TextItem[]): Promise<Result> {
   const t0 = Date.now();
   const usage = { input: 0, output: 0, calls: 0, ms: 0 };
   const notes: string[] = [];
   const log = env.log ?? (() => {});
+  // Bug-report capture: everything needed to replay this run (the AI's answers, the OCR table, the page size)
+  const dump: any = { instruction: req.instruction, mark: req.mark, page: [page.w, page.h], ocr: ocr.map((l) => ({ id: l.id, box: l.box, text: l.text, words: l.words, rot: l.rot, conf: l.conf })), responses: [] as any[] };
+  publishDump(dump);
   const call = async (body: any) => {
     const tc = Date.now();
     const r = await env.claude({ model: env.model, max_tokens: 8000, ...body });
+    dump.responses.push((r?.content ?? []).filter((b: any) => b.type === 'tool_use').map((b: any) => ({ name: b.name, input: b.input })));
     log(`  (AI ${((Date.now() - tc) / 1000).toFixed(1)} s, ${r.usage?.output_tokens ?? '?'} tokens ut)`);
     if (r.stop_reason === 'max_tokens') log('(svaret blev avkortat)');
     usage.calls++; usage.input += r.usage?.input_tokens ?? 0; usage.output += r.usage?.output_tokens ?? 0;
