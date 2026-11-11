@@ -137,3 +137,20 @@ export function cropRaster(r: Raster, b: Box): Raster {
 export function pasteRaster(dst: Raster, src: Raster, x0: number, y0: number) {
   for (let y = 0; y < src.h; y++) dst.data.set(src.data.subarray(y * src.w * 4, (y + 1) * src.w * 4), ((y0 + y) * dst.w + x0) * 4);
 }
+
+/** Shrink a picture by a factor f >= 1 (averaging, so thin lines and small text stay readable). */
+export function shrinkRaster(r: Raster, f: number): Raster {
+  if (f <= 1) return r;
+  const w = Math.max(1, Math.floor(r.w / f)), h = Math.max(1, Math.floor(r.h / f)), out = makeRaster(w, h);
+  for (let y = 0; y < h; y++) {
+    const sy0 = Math.floor(y * f), sy1 = Math.min(r.h, Math.max(sy0 + 1, Math.floor((y + 1) * f)));
+    for (let x = 0; x < w; x++) {
+      const sx0 = Math.floor(x * f), sx1 = Math.min(r.w, Math.max(sx0 + 1, Math.floor((x + 1) * f)));
+      let a = 0, g = 0, b = 0, n = 0;
+      for (let yy = sy0; yy < sy1; yy++) for (let xx = sx0; xx < sx1; xx++) { const i = (yy * r.w + xx) * 4; a += r.data[i]; g += r.data[i + 1]; b += r.data[i + 2]; n++; }
+      const j = (y * w + x) * 4;
+      out.data[j] = a / n; out.data[j + 1] = g / n; out.data[j + 2] = b / n; out.data[j + 3] = 255;
+    }
+  }
+  return out;
+}

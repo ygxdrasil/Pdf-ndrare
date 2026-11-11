@@ -5,7 +5,7 @@
 //  - Editing: the part of the page around such a line is cut out, turned so the text is straight,
 //    edited by the ordinary engine, turned back and pasted in again.
 
-import { Box, Raster, cloneRaster, cropRaster, pasteRaster, rotateCCW, rotateCW, unionBox, clampBox, padBox } from './raster';
+import { Box, Raster, cloneRaster, cropRaster, pasteRaster, rotateCCW, rotateCW, shrinkRaster, unionBox, clampBox, padBox } from './raster';
 import { applyEdits, Applied, Edit, EditReport, OcrLine, TextEdit } from './edit';
 import { drawText, FontLib } from './fonts';
 
@@ -29,19 +29,23 @@ function forwardBox(b: Box, cut: { w: number; h: number }, cw: boolean): Box {
  * Read the page turned each way and return the lines that run vertically, in page coordinates.
  * Only confident lines with real content are kept; the caller merges them with the normal reading.
  */
-export async function ocrRotated(r: Raster, pass: PassFn): Promise<OcrLine[]> {
+export async function ocrRotated(page: Raster, pass: PassFn): Promise<OcrLine[]> {
+  // big renders (print resolution) are read on a smaller copy: vertical text is rare, and the cost is per pixel
+  const f = Math.max(1, Math.max(page.w, page.h) / 2200);
+  const r = shrinkRaster(page, f);
   const out: OcrLine[] = [];
   for (const cw of [true, false]) {
     const rr = cw ? rotateCW(r) : rotateCCW(r);
     const lines = await pass(rr, { x0: 0, y0: 0, x1: rr.w, y1: rr.h }, false, 70);
+    const up = (b: Box): Box => { const t = backBox(b, r, cw); return { x0: t.x0 * f, y0: t.y0 * f, x1: t.x1 * f, y1: t.y1 * f }; };
     for (const l of lines) {
       const alnum = (l.text.match(/[\p{L}\p{N}]/gu) ?? []).length;
       if (alnum < 4 || !/\d|\p{L}{3}/u.test(l.text)) continue;
       out.push({
         id: 0,
         text: l.text,
-        box: backBox(l.box, r, cw),
-        words: (l.words ?? []).map((w) => ({ text: w.text, box: backBox(w.box, r, cw) })),
+        box: up(l.box),
+        words: (l.words ?? []).map((w) => ({ text: w.text, box: up(w.box) })),
         rot: cw ? 90 : -90,
         conf: l.conf,
       });

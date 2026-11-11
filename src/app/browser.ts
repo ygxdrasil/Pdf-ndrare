@@ -295,8 +295,8 @@ export async function ocrPage(r: Raster, onStep?: (s: string) => void): Promise<
   const a = await pass(r, all, false);
   onStep?.('Läser texten på sidan (2/2) …');
   const b = await pass(r, all, true);
-  // small print is missed on a whole-page pass: read the page again in overlapping tiles, enlarged
-  const t = await tilePasses(r, onStep);
+  // small print is missed on a whole-page pass: read the page again in overlapping tiles, enlarged (a big, high-resolution render already has the detail)
+  const t = Math.max(r.w, r.h) > 2600 ? [] : await tilePasses(r, onStep);
   // vertical text (dimension lines): read the page turned each way
   onStep?.('Läser lodrät text …');
   const v = await ocrRotated(r, pass);
