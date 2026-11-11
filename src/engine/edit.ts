@@ -587,9 +587,9 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
             // side(s) the alignment allows move. Not enough room: squeeze the word a little.
             const free = (x: number, dir: 1 | -1) => freeRun(src, midInfo.inkBox, x, dir, Math.round(wSize * 3), info.thresh);
             const keep = wSize * 0.3;
-            // a word gap may close to about two thirds of a normal space (not visible)
-            const slackR = sufInfo ? Math.max(0, sufInfo.inkBox.x0 - oldX1 - space * 0.65) : 0;
-            const slackL = preInfo ? Math.max(0, oldX0 - preInfo.inkBox.x1 - space * 0.65) : 0;
+            // a word gap may close down to about one normal space, never tighter ("10,2cm²" looks glued)
+            const slackR = sufInfo ? Math.max(0, sufInfo.inkBox.x0 - oldX1 - space * 0.95) : 0;
+            const slackL = preInfo ? Math.max(0, oldX0 - preInfo.inkBox.x1 - space * 0.95) : 0;
             const roomR = align === 'right' ? 0 : Math.max(0, free((sufInfo ?? midInfo).inkBox.x1, 1) - keep);
             const roomL = align === 'left' ? 0 : Math.max(0, free((preInfo ?? midInfo).inkBox.x0, -1) - keep);
             const capR = slackR + roomR, capL = slackL + roomL;
@@ -630,10 +630,10 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
             continue;
           }
           // the new word keeps the line's own word gap (a wider word must not eat the space before it)
-          if (preInfo && midInfo && midNew && !sufInfo && align === 'left') {
+          if (preInfo && midInfo && midNew && !sufInfo) {
             const gap0 = midInfo.inkBox.x0 - preInfo.inkBox.x1;
             const want = Math.min(Math.max(gap0, space * 0.7), space * 1.4);
-            const have = placeX - preInfo.inkBox.x1;
+            const have = placeX - (preInfo.inkBox.x1 + (Math.abs(shiftPre) >= 0.5 ? shiftPre : 0));
             if (have < want * 0.85) placeX += want - have;
           }
           const backupBox = clampBox(padBox(unionBox([info.area, ...(midInfo ? [midInfo.area] : []), ...(preInfo ? [preInfo.area] : []), ...(sufInfo ? [sufInfo.area] : [])]), 6), out);
