@@ -98,7 +98,7 @@ export default function App() {
     try {
       let ocr = v.ocr;
       if (!ocr) { ocr = await ocrPage(v.preview, setBusy); v.ocr = ocr; }
-      setBusy('Claude läser sidan …');
+      setBusy('AI läser sidan …');
       const res = await runRequest({
         lib, model: MODELS[model].id, effort: 'medium', compact: true, allowPictures: import.meta.env.VITE_ALLOW_PICTURE_EDITS === '1', vectorOnly: file!.image.mode === 'render' && (file!.image.ppi ?? 300) < 200,
         claude: callClaude,

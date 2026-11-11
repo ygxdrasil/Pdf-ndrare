@@ -146,12 +146,12 @@ function b64ToBlob(b64: string, type: string): Blob {
 }
 
 const SAMPLE_ERRORS: Record<string, string> = {
-  not_granted: 'Du behöver tillåta att sidan använder Claude (rutan som dök upp). Ladda om sidan och välj Tillåt.',
+  not_granted: 'Du behöver tillåta att sidan använder AI:n (rutan som dök upp). Ladda om sidan och välj Tillåt.',
   rate_limited: 'Många förfrågningar på kort tid, eller din Claude-gräns är nådd. Vänta en stund och försök igen.',
   session_expired: 'Du har blivit utloggad från Claude. Logga in igen och ladda om sidan.',
   images_unavailable: 'Den här vyn kan inte skicka bilder till Claude.',
-  invalid_json: 'Claude svarade i fel format. Försök igen.',
-  refused: 'Claude ville inte göra den här ändringen. Formulera om och försök igen.',
+  invalid_json: 'AI:n svarade i fel format. Försök igen.',
+  refused: 'AI:n ville inte göra den här ändringen. Formulera om och försök igen.',
 };
 
 /** Stack pictures vertically (white gap), scaled to fit ~1.2 MP. */
@@ -216,7 +216,7 @@ async function callViaSample(body: any) {
     const r = await sampleFn(parts.join('\n\n'), opts);
     return { content: [{ type: 'text', text: r.text }], usage: { input_tokens: 0, output_tokens: 0 }, stop_reason: r.truncated ? 'max_tokens' : 'end_turn' };
   } catch (e: any) {
-    throw new Error(SAMPLE_ERRORS[e?.code] ?? 'Något gick fel hos Claude. Försök igen.');
+    throw new Error(SAMPLE_ERRORS[e?.code] ?? 'Något gick fel hos AI:n. Försök igen.');
   }
 }
 
@@ -224,7 +224,7 @@ export async function callClaude(body: any) {
   if (sampleFn) return callViaSample(body);
   const r = await fetch('api/claude', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
   const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(j.error || 'Något gick fel hos Claude. Försök igen.');
+  if (!r.ok) throw new Error(j.error || 'Något gick fel hos AI:n. Försök igen.');
   return j;
 }
 

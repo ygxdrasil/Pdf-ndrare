@@ -155,7 +155,7 @@ function toolInput(resp: any, name: string): any {
   const text = (resp.content ?? []).filter((b: any) => b.type === 'text').map((b: any) => b.text).join('\n');
   const m = text.match(/\{[\s\S]*\}/);
   if (m) try { return JSON.parse(m[0]); } catch { /* ignore */ }
-  throw new Error('Claude svarade inte med en plan.');
+  throw new Error('AI:n svarade inte med en plan.');
 }
 
 const SYSTEM_PLAN = `You edit text on flattened print artwork (the whole page is one picture). You do NOT draw: a precise engine erases old lettering and sets new vector text in a matched font, size, colour, spacing and alignment. It can also remove non-text elements ("erase") and move existing elements such as icons with their captions ("moves", exact pixel copies). It cannot draw new pictures or change an icon's drawing, but text INSIDE an icon or badge (e.g. a temperature in a symbol) is text and can be changed: give its box. Your job is to decide WHAT changes, as a plan.
@@ -194,14 +194,14 @@ export async function runRequest(env: AgentEnv, page: Raster, ocr: OcrLine[], re
   const call = async (body: any) => {
     const tc = Date.now();
     const r = await env.claude({ model: env.model, max_tokens: 8000, ...body });
-    log(`  (Claude ${((Date.now() - tc) / 1000).toFixed(1)} s, ${r.usage?.output_tokens ?? '?'} tokens ut)`);
+    log(`  (AI ${((Date.now() - tc) / 1000).toFixed(1)} s, ${r.usage?.output_tokens ?? '?'} tokens ut)`);
     if (r.stop_reason === 'max_tokens') log('(svaret blev avkortat)');
     usage.calls++; usage.input += r.usage?.input_tokens ?? 0; usage.output += r.usage?.output_tokens ?? 0;
     return r;
   };
 
   // ---------- 1. plan ----------
-  log('Claude läser sidan …');
+  log('AI läser sidan …');
   // Claude sees the page at scale SC; all coordinates we exchange are in that space.
   const SC = Math.min(1, 1568 / Math.max(page.w, page.h), env.compact ? Math.sqrt(1.15e6 / (page.w * page.h)) : 1);
   const toC = (v: number) => Math.round(v * SC);
@@ -228,13 +228,13 @@ export async function runRequest(env: AgentEnv, page: Raster, ocr: OcrLine[], re
   try { plan = toolInput(planResp, 'edit_plan'); } catch {
     // Claude answered in words instead of the plan tool: ask once more, firmly; if it still talks, show its words as a question
     const said = textOf(planResp);
-    log('Claude läser sidan igen …');
+    log('AI läser sidan igen …');
     planResp = await call(planBody([{ role: 'user', content }, ...(said ? [{ role: 'assistant', content: said }] : []), { role: 'user', content: [{ type: 'text', text: 'Answer ONLY by calling the edit_plan tool. If something is unclear, put the question in its "question" field (in Swedish) and leave edits empty.' }] }]));
     try { plan = toolInput(planResp, 'edit_plan'); } catch {
       const q = textOf(planResp) || said;
       usage.ms = Date.now() - t0;
       if (q) return { edits: [], summary: '', question: q.slice(0, 1500), usage, notes };
-      throw new Error('Claude kunde inte göra en plan av det här. Försök skriva ändringen på ett annat sätt, eller markera området med en ruta.');
+      throw new Error('AI:n kunde inte göra en plan av det här. Försök skriva ändringen på ett annat sätt, eller markera området med en ruta.');
     }
   }
   if (!plan || typeof plan !== 'object') plan = {};
@@ -579,7 +579,7 @@ export async function runRequest(env: AgentEnv, page: Raster, ocr: OcrLine[], re
   const firstApplied = applied;
 
   // ---------- 4. check once, fix once ----------
-  log('Claude kontrollerar resultatet …');
+  log('AI kontrollerar resultatet …');
   const check = async (applied: Applied, effort: string) => {
   const preview = await renderPreview(env, applied, page.w, page.h);
   const cc: any[] = [{ type: 'text', text: `The request was: <request>${req.instruction}</request>\nPlan summary (anything it says was skipped on purpose is NOT a problem): ${plan.summary ?? ''}\nThe plan (edit index: old -> new):\n${edits.map((e, i) => e.kind === 'text' ? `${i}: ${JSON.stringify(e.old)} -> ${JSON.stringify(e.new)}` : e.kind === 'move' ? `${i}: move element` : `${i}: erase box`).join('\n')}\nBelow: for each changed area, BEFORE then AFTER (close-up). Then the whole page AFTER. Judge as a print designer: is any old text still visible, overlapping, cut off, misaligned, wrong size vs. its surroundings, or not what was asked? Only flag real problems. Give fixes using the edit index.` }];
@@ -629,7 +629,7 @@ export async function runRequest(env: AgentEnv, page: Raster, ocr: OcrLine[], re
       applied = await mergePrior(env, prior, await applyEditsRot(page, ocr, edits, env.lib, base, { vectorOnly: env.vectorOnly }));
       const n = fixes.filter((f: any) => edits[f.edit]?.kind === 'text').length;
       // look once more: only claim it's fixed when it really is, otherwise tell Elin what to check
-      log('Claude kontrollerar rättelsen …');
+      log('AI kontrollerar rättelsen …');
       const ck2 = n ? normCheck(await check(applied, 'low')) : ck;
       if (n && ck2.ok) notes.push(`Rättat efter kontrollen: ${n === 1 ? 'en sak' : `${n} saker`} (t.ex. ${String(ck.problems?.[0] ?? '').replace(/^Edit \d+:\s*/i, '').slice(0, 120)}).`);
       else notes.push(...(ck2.problems?.length ? ck2.problems : ck.problems ?? []).map((p: string) => `Att titta på: ${p.replace(/^Edit \d+:\s*/i, '')}`));
