@@ -816,7 +816,7 @@ async function calibrateWeight(src: Raster, lib: FontLib, family: string, kw: Li
     await rasterizeInto(t, { text, key: c.key, size, tracking: tr, hs, bold: c.bold, x: kw.inkBox.x0 - ext.minX, baseline: base, color, raster: true }, lib, kw);
     // a real weight is preferred over a thickened one when both are about as dark
     // total darkness depends on size and spacing as much as on weight, so small errors there pass for "heavier": a light pull toward a regular weight keeps only clearly bold words bold
-    const err = Math.abs(Math.log(Math.max(1, Math.abs(dark(t))) / target)) + 0.5 * (c.bold / Math.max(1, size)) + 0.06 * (Math.max(0, (c.w ?? 400) - 450) / 100);
+    const err = Math.abs(Math.log(Math.max(1, Math.abs(dark(t))) / target)) + (size >= 30 ? 2 : 0.5) * (c.bold / Math.max(1, size)) + (size >= 30 ? 0.02 : 0.06) * (Math.max(0, (c.w ?? 400) - 450) / 100);
     if (err < bestErr) { bestErr = err; best = c; }
   }
   return best;

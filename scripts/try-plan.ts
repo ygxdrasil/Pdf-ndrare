@@ -26,6 +26,7 @@ const vectorOnly = image.mode === 'render' && (image.ppi ?? 300) < 200;
 console.log('mode', image.mode, 'ppi', image.ppi, 'vectorOnly', vectorOnly);
 const res = await applyEditsRot(raster, ocr, edits, lib, undefined, { vectorOnly });
 for (const r of res.reports) console.log(r.index, r.mode, r.font, JSON.stringify((edits[r.index] as any).new), r.warnings.join(' '));
+if (process.env.DUMPR) await writeFile(process.env.DUMPR, await codec.encodePng(res.raster)); // debug: the engine's own picture
 const outBytes = isPdf
   ? await writePdf(bytes, image, res.raster, res.items, lib, codec, raster)
   : await writeImage(image, res.raster, res.items, lib, codec, (a) => renderPreview({ lib }, a as any, image.w, image.h));

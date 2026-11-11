@@ -200,12 +200,13 @@ export function changedBoxes(a: Raster, b: Raster, pad = 3): { x0: number; y0: n
     }
     out.push({ x0: Math.max(0, x0 * C - pad), y0: Math.max(0, y0 * C - pad), x1: Math.min(a.w, (x1 + 1) * C + pad), y1: Math.min(a.h, (y1 + 1) * C + pad) });
   }
-  // merge overlapping boxes
+  // merge boxes that overlap or nearly touch: a patch edge running through a letter shows as a hairline seam in some viewers
+  const G = 40;
   for (let changed = true; changed; ) {
     changed = false;
     for (let i = 0; i < out.length && !changed; i++) for (let j = i + 1; j < out.length; j++) {
       const p = out[i], q = out[j];
-      if (p.x0 <= q.x1 && q.x0 <= p.x1 && p.y0 <= q.y1 && q.y0 <= p.y1) {
+      if (p.x0 <= q.x1 + G && q.x0 <= p.x1 + G && p.y0 <= q.y1 + G && q.y0 <= p.y1 + G) {
         out[i] = { x0: Math.min(p.x0, q.x0), y0: Math.min(p.y0, q.y0), x1: Math.max(p.x1, q.x1), y1: Math.max(p.y1, q.y1) };
         out.splice(j, 1); changed = true; break;
       }
