@@ -512,9 +512,10 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
             const lb2 = unionBox([midB, inLine([wb[nb]])]);
             const ltxt = s > 0 ? `${midTxt} ${ow[nb]}` : `${ow[nb]} ${midTxt}`;
             const li2 = analyzeLine(src, lb2);
-            const loc = await matchFont(lib, [{ info: li2, text: ltxt }], {});
+            // the plan's style (sans/serif) still holds for a tiny word: its ink is too little to overrule it
+            const loc = await matchFont(lib, [{ info: li2, text: ltxt }], { style: e.style ?? 'any' });
             const cur = await matchFont(lib, [{ info: li2, text: ltxt }], { families: [fm.family] });
-            if (loc.family !== fm.family && loc.score > cur.score + 0.03) fm = loc;
+            if (loc.family !== fm.family && loc.score > cur.score + 0.06) fm = loc;
             const use = loc.family === fm.family ? loc : cur;
             wSize = use.lines[0].size * (e.sizeScale ?? 1); wTr = use.lines[0].tracking * (e.sizeScale ?? 1); wBase = use.lines[0].baseline; wHs = use.lines[0].hs; wBold = use.lines[0].bold * (e.sizeScale ?? 1);
           }
