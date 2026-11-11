@@ -745,7 +745,7 @@ export async function renderPreview(env: { lib: FontLib }, a: Applied, w: number
   ctx.putImageData(id, 0, 0);
   for (const it of a.items) {
     const font = await env.lib.load(it.key);
-    drawText(ctx, font, it.text, it.x, it.baseline, it.size, it.tracking, `rgb(${it.color.map(Math.round).join(',')})`, it.hs ?? 1, it.bold ?? 0);
+    drawText(ctx, font, it.text, it.x, it.baseline, it.size, it.tracking, `rgb(${it.color.map(Math.round).join(',')})`, it.hs ?? 1, it.bold ?? 0, it.slant ?? 0);
   }
   return canvasToRaster(ctx, w, h);
 }

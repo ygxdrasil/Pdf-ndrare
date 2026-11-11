@@ -98,7 +98,7 @@ export function missingChars(font: any, text: string): string[] {
  */
 /** `hs` = horizontal scale of the letters (like Illustrator's horizontal scale); tracking is final px.
  * `bold` = extra outline width in px (synthetic emboldening, for fonts lacking the in-between weight). */
-export function drawText(ctx: any, font: any, text: string, x: number, baseline: number, size: number, tracking = 0, color = '#000', hs = 1, bold = 0): number {
+export function drawText(ctx: any, font: any, text: string, x: number, baseline: number, size: number, tracking = 0, color = '#000', hs = 1, bold = 0, slant = 0): number {
   const run = font.layout(text, FEATURES);
   const s = size / font.unitsPerEm, sx = s * hs;
   let pen = 0;
@@ -111,10 +111,10 @@ export function drawText(ctx: any, font: any, text: string, x: number, baseline:
     for (const c of g.path.commands) {
       const a = c.args;
       switch (c.command) {
-        case 'moveTo': ctx.moveTo(ox + a[0] * sx, oy - a[1] * s); break;
-        case 'lineTo': ctx.lineTo(ox + a[0] * sx, oy - a[1] * s); break;
-        case 'quadraticCurveTo': ctx.quadraticCurveTo(ox + a[0] * sx, oy - a[1] * s, ox + a[2] * sx, oy - a[3] * s); break;
-        case 'bezierCurveTo': ctx.bezierCurveTo(ox + a[0] * sx, oy - a[1] * s, ox + a[2] * sx, oy - a[3] * s, ox + a[4] * sx, oy - a[5] * s); break;
+        case 'moveTo': ctx.moveTo(ox + a[0] * sx + slant * a[1] * s, oy - a[1] * s); break;
+        case 'lineTo': ctx.lineTo(ox + a[0] * sx + slant * a[1] * s, oy - a[1] * s); break;
+        case 'quadraticCurveTo': ctx.quadraticCurveTo(ox + a[0] * sx + slant * a[1] * s, oy - a[1] * s, ox + a[2] * sx + slant * a[3] * s, oy - a[3] * s); break;
+        case 'bezierCurveTo': ctx.bezierCurveTo(ox + a[0] * sx + slant * a[1] * s, oy - a[1] * s, ox + a[2] * sx + slant * a[3] * s, oy - a[3] * s, ox + a[4] * sx + slant * a[5] * s, oy - a[5] * s); break;
         case 'closePath': ctx.closePath(); break;
       }
     }

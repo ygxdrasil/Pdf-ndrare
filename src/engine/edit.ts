@@ -72,12 +72,13 @@ function detectAlign(infos: LineInfo[]): 'left' | 'center' | 'right' {
   return m === c && c < l - 2 ? 'center' : m === r && r < l - 2 ? 'right' : 'left';
 }
 
-export function inkExtent(font: any, text: string, size: number, tracking: number, hs = 1) {
+export function inkExtent(font: any, text: string, size: number, tracking: number, hs = 1, slant = 0) {
   const run = font.layout(text, FEATURES);
   const s = (size / font.unitsPerEm) * hs;
   const b = run.bbox;
   const n = run.glyphs.length;
-  return { minX: b.minX * s, maxX: b.maxX * s + tracking * Math.max(0, n - 1), adv: run.advanceWidth * s + tracking * n };
+  const v = size / font.unitsPerEm; // leaning letters reach further right at the top, further left at the bottom
+  return { minX: b.minX * s + Math.min(0, slant * b.minY * v), maxX: b.maxX * s + Math.max(0, slant * b.maxY * v) + tracking * Math.max(0, n - 1), adv: run.advanceWidth * s + tracking * n };
 }
 
 /**
@@ -564,6 +565,7 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
           let key = fm.key;
           if (kk !== undefined) ({ key, bold: wBold } = await calibrateWeight(src, lib, fm.family, analyzeLine(src, wb[kk]), ow[kk], wSize, wTr, wBase, drawColor, fm.key, wHs, wBold));
           const kfont = await lib.load(key);
+          const wSl = info.slant ?? 0; // italic lines stay italic
           // word gap: as measured between the line's own words, when we can
           let space = inkExtent(kfont, ' ', wSize, wTr, wHs).adv + wTr;
           const gaps = wb.slice(1).map((bx, k) => bx.x0 - wb[k].x1).filter((g) => g > 0);
@@ -571,7 +573,7 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
           // old middle span in ink terms; if empty (pure insertion), use the gap
           const oldX0 = midInfo ? midInfo.inkBox.x0 : (preInfo ? preInfo.inkBox.x1 + space : sufInfo!.inkBox.x0);
           const oldX1 = midInfo ? midInfo.inkBox.x1 : oldX0 - space;
-          let ext = midNew ? inkExtent(kfont, midNew, wSize, wTr, wHs) : { minX: 0, maxX: -space, adv: 0 };
+          let ext = midNew ? inkExtent(kfont, midNew, wSize, wTr, wHs, wSl) : { minX: 0, maxX: -space, adv: 0 };
           let newW = midNew ? ext.maxX - ext.minX : -space;
           // same width in the fitted font (e.g. digit for digit): keep the neighbours where they are
           const oldModel = midInfo && midNew ? inkExtent(kfont, midTxt, wSize, wTr, wHs) : null;
@@ -598,7 +600,7 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
             gR = Math.min(capR, delta - gL);
             if (gR + gL < delta - 0.5) {
               const k = Math.max(0.8, (oldX1 - oldX0 + gR + gL) / newW);
-              wHs *= k; ext = inkExtent(kfont, midNew, wSize, wTr * k, wHs); wTr *= k; newW = ext.maxX - ext.minX;
+              wHs *= k; ext = inkExtent(kfont, midNew, wSize, wTr * k, wHs, wSl); wTr *= k; newW = ext.maxX - ext.minX;
               if (k < 0.97) warnings.push(`"${midNew}" trycktes ihop till ${Math.round(k * 100)} % för att få plats.`);
               delta = newW - (oldX1 - oldX0);
             }
@@ -625,7 +627,7 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
             const vx = inkExtent(kfont, vt, wSize, wTr, wHs);
             const L = from < p && preInfo ? preInfo.inkBox.x0 : placeX, R = to > nw.length - s && sufInfo ? sufInfo.inkBox.x1 : placeX + newW;
             const x = !moved ? placeX - vx.minX : anchor === 'right' ? R - vx.maxX : anchor === 'center' ? (L + R) / 2 - (vx.minX + vx.maxX) / 2 : L - vx.minX;
-            items.push({ text: vt, key, size: wSize, tracking: wTr, hs: wHs, bold: wBold, x, baseline: wBase, color: drawColor });
+            items.push({ text: vt, key, size: wSize, tracking: wTr, hs: wHs, bold: wBold, slant: wSl, x, baseline: wBase, color: drawColor });
             modes.push(`words-vector(${p},${s})`);
             continue;
           }
@@ -643,7 +645,7 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
           if (midInfo) eraseLine(out, src, midInfo);
           if (preInfo && Math.abs(shiftPre) >= 0.5) { eraseLine(out, src, preInfo); pasteInk(out, src, preInfo, shiftPre); }
           if (sufInfo && Math.abs(shiftSuf) >= 0.5) { eraseLine(out, src, sufInfo); pasteInk(out, src, sufInfo, shiftSuf); }
-          const wordItem = midNew ? { text: midNew, key, size: wSize, tracking: wTr, hs: wHs, bold: wBold, x: placeX - ext.minX, baseline: wBase, color: drawColor, raster: true, ref: midInfo ?? preInfo ?? sufInfo ?? info } : null;
+          const wordItem = midNew ? { text: midNew, key, size: wSize, tracking: wTr, hs: wHs, bold: wBold, slant: wSl, x: placeX - ext.minX, baseline: wBase, color: drawColor, raster: true, ref: midInfo ?? preInfo ?? sufInfo ?? info } : null;
           // Safety net: if old letters are still under the new word (a word box that missed part of them),
           // undo this and set the whole line instead, which clears everything.
           // ...also old ink left between the kept words on either side of the new word (a word box that cut the letters)
@@ -672,8 +674,8 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
           maxW = Math.max(maxW, inkW0 + (align === 'left' ? fr : align === 'right' ? fl : 2 * Math.min(fl, fr)));
         }
         let k = 1;
-        let ext = inkExtent(font, newL, size, tr, hs);
-        while (ext.maxX - ext.minX > maxW && k > 0.6) { k -= 0.02; ext = inkExtent(font, newL, size * k, tr * k, hs); }
+        let ext = inkExtent(font, newL, size, tr, hs, info.slant);
+        while (ext.maxX - ext.minX > maxW && k > 0.6) { k -= 0.02; ext = inkExtent(font, newL, size * k, tr * k, hs, info.slant); }
         if (k < 0.999) warnings.push(`"${newL}" krymptes till ${Math.round(k * 100)} % för att få plats.`);
         const x0 = info.inkBox.x0, x1 = info.inkBox.x1;
         const anchorL = infos.length > 1 && align === 'left' ? blockX0 : x0;
@@ -687,12 +689,12 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
           if (lkey !== m.key) {
             // a different weight is a little wider or narrower: re-place it
             const lf = await lib.load(lkey);
-            ext = inkExtent(lf, newL, size * k, tr * k, hs);
-            while (ext.maxX - ext.minX > maxW && k > 0.6) { k -= 0.02; ext = inkExtent(lf, newL, size * k, tr * k, hs); }
+            ext = inkExtent(lf, newL, size * k, tr * k, hs, info.slant);
+            while (ext.maxX - ext.minX > maxW && k > 0.6) { k -= 0.02; ext = inkExtent(lf, newL, size * k, tr * k, hs, info.slant); }
           }
         }
         const pen2 = align === 'center' ? cx - (ext.minX + ext.maxX) / 2 : align === 'right' ? anchorR - ext.maxX : anchorL - ext.minX;
-        items.push({ text: newL, key: lkey, size: size * k, tracking: tr * k, hs, bold: lbold * k, x: pen2, baseline: base, color: info.color });
+        items.push({ text: newL, key: lkey, size: size * k, tracking: tr * k, hs, bold: lbold * k, slant: info.slant, x: pen2, baseline: base, color: info.color });
         modes.push('line');
       }
       reports.push({ index: i, font: `${m.family} ${m.weight}`, sizePx: +size0.toFixed(1), shrunk: 1, lines: infos.length, mode: modes.join(','), warnings, match: m, box: touched });
@@ -761,7 +763,7 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
     lines.forEach((t, li) => {
       const ext = inkExtent(font, t, size, tr, hs0);
       const pen = align === 'center' ? cx - (ext.minX + ext.maxX) / 2 : align === 'right' ? blockX1 - ext.maxX : blockX0 - ext.minX;
-      items.push({ text: t, key: m.key, size, tracking: tr, hs: hs0, bold: bold0 * k, x: pen, baseline: firstBase + li * pitch * k, color });
+      items.push({ text: t, key: m.key, size, tracking: tr, hs: hs0, bold: bold0 * k, slant: infos[0].slant, x: pen, baseline: firstBase + li * pitch * k, color });
     });
     reports.push({ index: i, font: `${m.family} ${m.weight}`, sizePx: +size.toFixed(1), shrunk: +k.toFixed(3), lines: lines.length, mode: 'block', warnings, match: m, box: touched });
   }
@@ -824,7 +826,7 @@ async function calibrateWeight(src: Raster, lib: FontLib, family: string, kw: Li
 
 export async function rasterizeInto(dst: Raster, it: TextItem, lib: FontLib, ref?: LineInfo) {
   const font = await lib.load(it.key);
-  const ext = inkExtent(font, it.text, it.size, it.tracking, it.hs ?? 1);
+  const ext = inkExtent(font, it.text, it.size, it.tracking, it.hs ?? 1, it.slant ?? 0);
   const pad = Math.ceil(4 + (it.bold ?? 0));
   const x0 = Math.floor(it.x + ext.minX) - pad, x1 = Math.ceil(it.x + ext.maxX) + pad;
   const y0 = Math.floor(it.baseline - it.size * 1.05) - pad, y1 = Math.ceil(it.baseline + it.size * 0.35) + pad;
@@ -832,7 +834,7 @@ export async function rasterizeInto(dst: Raster, it: TextItem, lib: FontLib, ref
   if (W <= 0 || H <= 0) return;
   const big = lib.platform.createCanvas(W * S, H * S);
   const g = big.getContext('2d');
-  drawText(g, font, it.text, (it.x - x0) * S, (it.baseline - y0) * S, it.size * S, it.tracking * S, '#000', it.hs ?? 1, (it.bold ?? 0) * S);
+  drawText(g, font, it.text, (it.x - x0) * S, (it.baseline - y0) * S, it.size * S, it.tracking * S, '#000', it.hs ?? 1, (it.bold ?? 0) * S, it.slant ?? 0);
   const a = g.getImageData(0, 0, W * S, H * S).data;
   // box-downsample to picture resolution, then a light blur like the original
   const cov = new Float32Array(W * H);

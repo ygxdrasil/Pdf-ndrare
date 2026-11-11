@@ -16,6 +16,7 @@ export interface LineInfo {
   mass: number; // total ink (linear in darkness, so blur doesn't change it), in px
   inkBox: Box; // tight ink box (image px)
   color: RGB; // ink colour
+  slant: number; // lean of the letters (tan of the angle, 0 = upright, ~0.2 = italic)
 }
 
 const BAND = 3;
@@ -273,5 +274,31 @@ export function analyzeLine(r: Raster, ocrBox: Box): LineInfo {
       gd.push(dist(px(r, x, y), px(r, x + 1, y)));
     }
   const grain = gd.length > 20 ? percentile(gd, 0.5) : noise;
-  return { box, area, bgAt, noise, grain, thresh, ink, erase, cov, mass, inkBox, color };
+  return { box, area, bgAt, noise, grain, thresh, ink, erase, cov, mass, inkBox, color, slant: estimateSlant(ink, inkBox) };
+}
+
+
+/**
+ * How much the letters lean: the shear that makes the ink columns most "sharp" (vertical strokes
+ * line up). 0 for upright text; only reported when the gain is clear (italic is about 0.15-0.25).
+ */
+export function estimateSlant(ink: Mask, inkBox: Box): number {
+  const h = inkBox.y1 - inkBox.y0;
+  if (h < 10 || inkBox.x1 - inkBox.x0 < h * 2) return 0;
+  const W = ink.w;
+  const score = (s: number) => {
+    const bins = new Float32Array(W + Math.ceil(h * 0.6) + 4);
+    const off = Math.ceil(h * 0.2) + 2;
+    let n = 0;
+    for (let y = Math.max(ink.box.y0, Math.floor(inkBox.y0)); y < Math.min(ink.box.y1, Math.ceil(inkBox.y1)); y++) {
+      const up = inkBox.y1 - y; // height above the line's bottom
+      for (let x = 0; x < W; x++) if (ink.m[(y - ink.box.y0) * W + x]) { const k = Math.round(x - s * up) + off; if (k >= 0 && k < bins.length) { bins[k]++; n++; } }
+    }
+    let q = 0; for (const v of bins) q += v * v;
+    return n ? q / n : 0;
+  };
+  const base = score(0);
+  let best = 0, bestS = base;
+  for (let s = -0.1; s <= 0.45; s += 0.025) { const v = score(s); if (v > bestS) { bestS = v; best = s; } }
+  return best >= 0.1 && bestS > base * 1.08 ? Math.round(best * 40) / 40 : 0;
 }

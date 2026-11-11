@@ -2,7 +2,7 @@
 // same page, same placement, the cleaned picture swapped in, and the new
 // words on top as real (vector) text in embedded fonts.
 
-import { PDFDocument, PDFName, PDFRawStream, PDFDict, PDFArray, PDFRef, decodePDFRawStream, rgb, setCharacterSpacing, setCharacterSqueeze, setTextRenderingMode, TextRenderingMode, setLineWidth, setLineJoin, LineJoinStyle, setStrokingRgbColor, pushGraphicsState, popGraphicsState } from 'pdf-lib';
+import { PDFDocument, PDFName, PDFRawStream, PDFDict, PDFArray, PDFRef, decodePDFRawStream, rgb, degrees, setCharacterSpacing, setCharacterSqueeze, setTextRenderingMode, TextRenderingMode, setLineWidth, setLineJoin, LineJoinStyle, setStrokingRgbColor, pushGraphicsState, popGraphicsState } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
 import type { Raster } from './raster';
 import { FontLib, FEATURES } from './fonts';
@@ -164,6 +164,8 @@ export interface TextItem {
   hs?: number;
   /** synthetic emboldening: outline width, image px */
   bold?: number;
+  /** lean of the letters (tan of the angle; 0 = upright) */
+  slant?: number;
   x: number; // pen x, image px
   baseline: number; // image y
   color: [number, number, number];
@@ -263,7 +265,7 @@ export async function writePdf(original: Uint8Array, img: PageImage, edited: Ras
     // Tz scales the spacing too, so the spacing is given before scaling
     page.pushOperators(pushGraphicsState(), setCharacterSpacing((it.tracking * scale) / hs), setCharacterSqueeze(hs * 100));
     if (bold > 0) page.pushOperators(setTextRenderingMode(TextRenderingMode.FillAndOutline), setLineWidth(bold * scale), setLineJoin(LineJoinStyle.Round), setStrokingRgbColor(col.red, col.green, col.blue));
-    page.drawText(it.text, { x, y, size: it.size * scale, font: f, color: col });
+    page.drawText(it.text, { x, y, size: it.size * scale, font: f, color: col, ...(it.slant ? { xSkew: degrees((Math.atan(it.slant) * 180) / Math.PI) } : {}) });
     page.pushOperators(popGraphicsState());
   }
   doc.setProducer('PDF-ändraren');
