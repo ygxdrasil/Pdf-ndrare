@@ -716,9 +716,11 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
 async function calibrateWeight(src: Raster, lib: FontLib, family: string, kw: LineInfo, text: string, size: number, tr: number, base: number, color: RGB, fallback: string, hs = 1, bold0 = 0): Promise<{ key: string; bold: number }> {
   const fams = lib.entries.filter((x) => x.family === family);
   // each real weight as is, and slightly thickened (for families without the in-between weight)
-  const cands: { key: string; bold: number }[] = [];
-  for (const c of fams) for (const b of [0, size * 0.03, size * 0.06]) cands.push({ key: c.key, bold: b });
-  if (bold0 > 0) cands.push({ key: fallback, bold: bold0 });
+  const cands: { key: string; bold: number; w?: number }[] = [];
+  // (small text: only real weights; faking extra weight by widening the outline smears tiny glyphs such as the ²)
+  // and no heavier than 500: the darkness measure overshoots on small text and then a unit like "cm²" turns out bold next to its regular-weight digits
+  for (const c of fams) if (size >= 30 || c.weight <= 500) for (const b of size < 30 ? [0] : [0, size * 0.03, size * 0.06]) cands.push({ key: c.key, bold: b, w: c.weight });
+  if (bold0 > 0 && size >= 30) cands.push({ key: fallback, bold: bold0 });
   const blank = cloneRaster(src);
   eraseLine(blank, src, kw);
   // measure only around the word itself (the area around it can hold bits of other lines)
@@ -750,7 +752,8 @@ async function calibrateWeight(src: Raster, lib: FontLib, family: string, kw: Li
     const t = cloneRaster(blank);
     await rasterizeInto(t, { text, key: c.key, size, tracking: tr, hs, bold: c.bold, x: kw.inkBox.x0 - ext.minX, baseline: base, color, raster: true }, lib, kw);
     // a real weight is preferred over a thickened one when both are about as dark
-    const err = Math.abs(Math.log(Math.max(1, Math.abs(dark(t))) / target)) + 0.5 * (c.bold / Math.max(1, size));
+    // total darkness depends on size and spacing as much as on weight, so small errors there pass for "heavier": a light pull toward a regular weight keeps only clearly bold words bold
+    const err = Math.abs(Math.log(Math.max(1, Math.abs(dark(t))) / target)) + 0.5 * (c.bold / Math.max(1, size)) + 0.06 * (Math.max(0, (c.w ?? 400) - 450) / 100);
     if (err < bestErr) { bestErr = err; best = c; }
   }
   return best;

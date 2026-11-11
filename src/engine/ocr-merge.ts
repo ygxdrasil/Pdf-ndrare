@@ -35,12 +35,15 @@ export function mergeOcr(...passes: OcrLine[][]): OcrLine[] {
       if (UNIT_Q.test(l.text)) { UNIT_Q.lastIndex = 0; l.text = fixUnits(l.text); for (const w of l.words ?? []) w.text = fixUnits(w.text); }
       UNIT_Q.lastIndex = 0;
       splitUnitWords(l);
-      const hit = out.findIndex((o) => overlap(o.box, l.box) > 0.4 * Math.min(area(o.box), area(l.box)));
-      if (hit >= 0) {
-        // the same spot read twice: keep the first, unless it is only a tiny fragment
-        // (a fragment like "By" vs the whole line "Byggnadsarea: 45,0 m²")
+      const hits = out.flatMap((o, i) => (overlap(o.box, l.box) > 0.4 * Math.min(area(o.box), area(l.box)) ? [i] : []));
+      if (hits.length) {
+        // the same spot read twice: keep the first. Only when everything it covers is a tiny
+        // fragment ("By") and the new reading is the whole line, replace them with it.
         const n = (t: string) => (t.match(/[\p{L}\p{N}]/gu) ?? []).length;
-        if (n(out[hit].text) <= 3 && n(l.text) >= n(out[hit].text) + 4) out[hit] = l; // only a real fragment is replaced, never a clean line
+        if (hits.every((i) => n(out[i].text) <= 3) && n(l.text) >= Math.max(...hits.map((i) => n(out[i].text))) + 4) {
+          out[hits[0]] = l;
+          for (const i of hits.slice(1).reverse()) out.splice(i, 1);
+        }
         continue;
       }
       out.push(l);

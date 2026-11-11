@@ -172,6 +172,7 @@ Rules:
 - Spreading out a row (e.g. after removing two of five icons): compute the row's left and right limits from the original first and last items, then place the remaining items so the gaps between them are equal, same y. Give each move's "to" as the new top-left of its box.
 - Always set "style" (sans, serif or script) by LOOKING at the lettering in the picture; labels and numbers on drawings and plans are almost always sans. Give the same "group" to labels that look alike (e.g. all room areas).
 - When the request says all/every/alla/överallt: go through the WHOLE OCR table, including legends, tables, title blocks and small print, and make one edit for EVERY matching place. Before you answer, count the matches in the table and check you have that many edits. Do not stop at the obvious ones.
+- OCR can garble or miss small text (e.g. "2,1 m²" read as "21 ny"). Look at the picture too: for any matching text that the OCR table lacks or garbles, give its box in "boxes" (with "old" exactly as printed) instead of line ids.
 - Product codes, barcodes, legal marks: leave them unless asked.
 - Ask a question only if you really cannot proceed.
 Call the edit_plan tool.`;
