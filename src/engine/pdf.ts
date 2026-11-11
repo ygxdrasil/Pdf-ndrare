@@ -17,7 +17,9 @@ export interface PageImage {
   /** picture pixels per inch on the printed page (render mode) */
   ppi?: number;
   /** why it was rendered: 'layers' = pictures/text on top (e.g. an edited file), 'text' = no page picture (real text), 'format' = picture format we don't swap directly */
-  reason?: 'layers' | 'text' | 'format';
+  reason?: 'layers' | 'text' | 'format' | 'locked';
+  /** the PDF is locked (owner password only: opens without one, but can't be edited in place): the result is a new PDF built from the picture */
+  locked?: boolean;
   pageIndex: number;
   pageCount: number;
   name: string; // XObject name on the page ('' in render mode)
@@ -92,7 +94,18 @@ export async function readPage(bytes: Uint8Array, codec: Codec, pageIndex = 0): 
   let doc: PDFDocument;
   try { doc = await PDFDocument.load(bytes, { updateMetadata: false }); }
   catch (e: any) {
-    if (/encrypt/i.test(String(e?.message))) throw new Error('PDF:en är lösenordsskyddad eller låst. Spara en olåst kopia och försök igen.');
+    if (/encrypt/i.test(String(e?.message))) {
+      // locked against editing but openable without a password: draw the page and rebuild it from the picture
+      const locked = new Error('PDF:en är lösenordsskyddad eller låst. Spara en olåst kopia och försök igen.');
+      try {
+        const probe = await codec.renderPage(bytes, pageIndex, 1);
+        const n = await pageCount(bytes);
+        const pw = probe.w, ph = probe.h;
+        const ppp = Math.min(300 / 72, Math.sqrt(16e6 / (pw * ph)), 400 / 72);
+        const raster = await codec.renderPage(bytes, pageIndex, ppp);
+        return { image: { mode: 'render', reason: 'locked', locked: true, pageIndex: pageIndex < n ? pageIndex : 0, pageCount: n, name: '', w: raster.w, h: raster.h, ctm: [pw, 0, 0, ph, 0, 0], pageW: pw, pageH: ph, ppi: Math.round(ppp * 72) }, raster };
+      } catch { throw locked; }
+    }
     throw new Error('Filen gick inte att läsa som PDF. Är den skadad? Prova att spara/skriva ut den som PDF igen.');
   }
   const pages = doc.getPageCount();
@@ -229,10 +242,13 @@ function crop(r: Raster, b: { x0: number; y0: number; x1: number; y1: number }):
  * a real-text/vector PDF stays exactly as it was (sharp, selectable).
  */
 export async function writePdf(original: Uint8Array, img: PageImage, edited: Raster, items: TextItem[], lib: FontLib, codec: Codec, orig?: Raster): Promise<Uint8Array> {
-  const doc = await PDFDocument.load(original, { updateMetadata: false });
+  const doc = img.locked ? await PDFDocument.create() : await PDFDocument.load(original, { updateMetadata: false });
   doc.registerFontkit(fontkit as any);
-  const page = doc.getPage(img.pageIndex);
-  if (img.mode === 'swap') {
+  const page = img.locked ? doc.addPage([img.pageW, img.pageH]) : doc.getPage(img.pageIndex);
+  if (img.locked) {
+    const png = await doc.embedPng(await codec.encodePng(edited));
+    page.drawImage(png, { x: 0, y: 0, width: img.pageW, height: img.pageH });
+  } else if (img.mode === 'swap') {
     // swap in the cleaned picture (lossless), same name, same placement
     const png = await doc.embedPng(await codec.encodePng(edited));
     const xobjs = page.node.Resources()!.lookup(PDFName.of('XObject')) as PDFDict;
