@@ -120,7 +120,7 @@ export default function App() {
     } catch (e: any) {
       console.error(e);
       const raw = String(e?.message ?? '');
-      const swedish = /[åäöÅÄÖ]/.test(raw) || /^(Claude|API|Du |Dagens|Många|Kunde|Hittade|Planen|Bilderna|Felaktig)/.test(raw);
+      const swedish = /[åäöÅÄÖ]/.test(raw) || /^(Claude|AI|API|Du |Dagens|Många|Kunde|Hittade|Planen|Bilderna|Felaktig)/.test(raw);
       setError(swedish ? raw : 'Något gick fel i bildbehandlingen. Försök igen, beskriv ändringen på ett annat sätt, eller dra en ruta runt det du menar.');
     }
     setBusy(null);
@@ -229,7 +229,7 @@ export default function App() {
 function ModelPick({ model, setModel, disabled, compact }: { model: ModelKey; setModel: (m: ModelKey) => void; disabled?: boolean; compact?: boolean }) {
   return (
     <div className={`modelpick ${compact ? 'compact' : ''}`}>
-      <span className="mp-label" id="mp-label">Claude-modell</span>
+      <span className="mp-label" id="mp-label">AI-modell</span>
       <div className="seg" role="radiogroup" aria-labelledby="mp-label">
         {(Object.keys(MODELS) as ModelKey[]).map((k) => (
           <button key={k} type="button" role="radio" aria-checked={model === k} className={model === k ? 'on' : ''} onClick={() => setModel(k)} disabled={disabled}>
