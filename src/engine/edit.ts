@@ -91,12 +91,14 @@ function freeRun(src: Raster, ink: Box, x: number, dir: 1 | -1, lim: number, thr
   const y0 = Math.max(0, Math.round(ink.y0)), y1 = Math.min(src.h, Math.round(ink.y1));
   const w0 = Math.max(0, Math.round(ink.y0 - h * 0.6)), w1 = Math.min(src.h, Math.round(ink.y1 + h * 0.6));
   for (let d = 1; d <= lim; d++) {
+    if (d <= 2) continue; // the word's own soft edge / the thin flag of a "1" can lie just outside its ink box
     const xx = Math.round(x + dir * d);
     if (xx < 0 || xx >= src.w) return d - 1;
     const col: number[][] = [];
     for (let y = w0; y < w1; y += 2) col.push(px(src, xx, y));
     const med = [0, 1, 2].map((c) => col.map((v) => v[c]).sort((a, b) => a - b)[col.length >> 1]) as RGB;
-    for (let y = y0; y < y1; y++) if (dist(px(src, xx, y), med) > thresh) return d - 1;
+    // faint tints (zebra rows, watermarks) are not lettering: only clear ink stops the free run
+    for (let y = y0; y < y1; y++) if (dist(px(src, xx, y), med) > Math.max(thresh, 60)) return d - 1;
   }
   return lim;
 }

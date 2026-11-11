@@ -18,6 +18,11 @@ console.log('OCR:', ocr.map((o) => `${o.id}:${o.rot ? '↻' : ''}${o.text}`).joi
 const lib = await makeLib();
 const edits: Edit[] = [];
 for (const e of JSON.parse(spec)) {
+  if (e.sub) { // regex substitution on every OCR line it matches: sub = [pattern, replacement]
+    const re = new RegExp(e.sub[0], 'g'); let n = 0;
+    for (const x of ocr) { if (!re.test(x.text)) { re.lastIndex = 0; continue; } re.lastIndex = 0; const nt = x.text.replace(re, e.sub[1]); if (nt !== x.text) { edits.push({ kind: 'text', lines: [x.id], old: [x.text], new: nt, align: e.align ?? 'left', style: e.style, group: e.group }); n++; } }
+    console.log('SUB', e.sub[0], '->', n, 'lines'); continue;
+  }
   if (e.finds) { // a paragraph over several OCR lines: finds = start of each line, old = the lines' text
     const ids = e.finds.map((f: string) => ocr.find((o) => o.text.includes(f))?.id);
     if (ids.some((x: any) => x === undefined)) { console.log('NOT FOUND', e.finds.join(' / ')); continue; }
