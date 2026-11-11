@@ -17,6 +17,11 @@ console.log('OCR:', ocr.map((o) => `${o.id}:${o.rot ? '↻' : ''}${o.text}`).joi
 const lib = await makeLib();
 const edits: Edit[] = [];
 for (const e of JSON.parse(spec)) {
+  if (e.finds) { // a paragraph over several OCR lines: finds = start of each line, old = the lines' text
+    const ids = e.finds.map((f: string) => ocr.find((o) => o.text.includes(f))?.id);
+    if (ids.some((x: any) => x === undefined)) { console.log('NOT FOUND', e.finds.join(' / ')); continue; }
+    edits.push({ kind: 'text', lines: ids, old: e.old, new: e.new, align: e.align ?? 'left', style: e.style, group: e.group }); continue;
+  }
   const h = e.box ? [] : ocr.filter((o) => (e.exact ? o.text.trim() === e.find : o.text.includes(e.find)));
   if (!h.length && !e.box) { console.log('NOT FOUND', e.find); continue; }
   if (e.box) { const k = e.refW ? raster.w / e.refW : 1; /* box given for a picture e.refW wide */ const bx = { x0: e.box.x0 * k, y0: e.box.y0 * k, x1: e.box.x1 * k, y1: e.box.y1 * k }; edits.push({ kind: 'text', lines: [], boxes: [bx], old: [e.old], new: e.new, align: e.align ?? 'left', style: e.style, group: e.group }); continue; }

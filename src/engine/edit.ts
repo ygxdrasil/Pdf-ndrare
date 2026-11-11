@@ -730,7 +730,8 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
     // Room to the right of a left-aligned block that is free of ink (rows of the block) may be used,
     // so a line that was squeezed earlier can get its own width back instead of breaking.
     let roomW = maxW;
-    if (e.maxWidth === undefined && align === 'left') {
+    // (a paragraph of several lines keeps its width: its right edge is the margin; only short lines/blocks may grow sideways)
+    if (e.maxWidth === undefined && align === 'left' && (infos.length === 1 || e.new.includes('\n'))) {
       const bgRef = infos[0], th = Math.max(60, bgRef.thresh * 1.5);
       const y0 = Math.max(0, Math.floor(oldTop)), y1 = Math.min(src.h, Math.ceil(oldBottom));
       const xEnd = Math.min(src.w, Math.ceil(blockX1 + (blockX1 - blockX0) * 0.3));
