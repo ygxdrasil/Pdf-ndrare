@@ -42,6 +42,8 @@ export interface TextEdit {
   noWords?: boolean;
   /** internal: letters at their natural width and spacing (a retry when the fit had to squeeze them) */
   noSqueeze?: boolean;
+  /** internal: size (px) taken from a similar, well-fitted line elsewhere on the page (a retry when this line's own fit was disturbed by other ink) */
+  forceSize?: number;
 }
 
 export interface EraseEdit { kind: 'erase'; box: Box }
@@ -454,7 +456,7 @@ function strokeThickness(cov: ArrayLike<number>, W: number, H: number): number {
  *  fit       - how well the chosen typeface matched the old line (0..1)
  *  side      - where a collision is (-1 left .. 1 right), to pick a better alignment
  */
-async function measureQuality(src: Raster, pre: Raster, reg: Box, fresh: TextItem[], infos: LineInfo[], m: MatchResult, lib: FontLib): Promise<Quality> {
+async function measureQuality(src: Raster, pre: Raster, reg: Box, fresh: TextItem[], infos: LineInfo[], m: MatchResult, lib: FontLib, moved: { info: LineInfo; dx: number }[] = []): Promise<Quality> {
   const ref = infos[0];
   const T = Math.max(60, ref.thresh * 1.5);
   const A = ref.area;
@@ -466,14 +468,35 @@ async function measureQuality(src: Raster, pre: Raster, reg: Box, fresh: TextIte
     const t = strokeThickness(cov, W, H);
     let sum = 0; for (let k = 0; k < cov.length; k++) sum += cov[k];
     if (t > 0) { thickN += t * sum; thickW += sum; }
-    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-      if (cov[y * W + x] <= 0.5) continue;
-      const X = x0 + x, Y = y0 + y;
-      glyph++; minX = Math.min(minX, X); maxX = Math.max(maxX, X); minY = Math.min(minY, Y); maxY = Math.max(maxY, Y);
-      if (X < reg.x0 || X >= reg.x1 || Y < reg.y0 || Y >= reg.y1) continue;
+    const inkAt = (X: number, Y: number): boolean => {
+      if (X < reg.x0 || X >= reg.x1 || Y < reg.y0 || Y >= reg.y1) return false;
       const p = pre.data, i = ((Y - reg.y0) * pre.w + (X - reg.x0)) * 4;
       const b = ref.bgAt(Math.min(Math.max(X, A.x0), A.x1 - 1), Math.min(Math.max(Y, A.y0), A.y1 - 1));
-      if (Math.abs(p[i] - b[0]) + Math.abs(p[i + 1] - b[1]) + Math.abs(p[i + 2] - b[2]) > T) { hit++; sx += X; }
+      return Math.abs(p[i] - b[0]) + Math.abs(p[i + 1] - b[1]) + Math.abs(p[i + 2] - b[2]) > T;
+    };
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const c = cov[y * W + x];
+      if (c <= 0.2) continue;
+      const X = x0 + x, Y = y0 + y;
+      if (c > 0.5) { glyph++; minX = Math.min(minX, X); maxX = Math.max(maxX, X); minY = Math.min(minY, Y); maxY = Math.max(maxY, Y); }
+      // on foreign ink, or touching it (the next pixel over)
+      if (inkAt(X, Y) || inkAt(X + 1, Y) || inkAt(X - 1, Y) || inkAt(X, Y + 1) || inkAt(X, Y - 1)) { hit++; sx += X; }
+    }
+  }
+  // kept words that were pushed sideways must not land on foreign ink either (a wall, a box edge, another word)
+  const inOld = (X: number, Y: number) => infos.some((f) => X >= f.inkBox.x0 - 4 && X <= f.inkBox.x1 + 4 && Y >= f.inkBox.y0 - 4 && Y <= f.inkBox.y1 + 4);
+  const srcInk = (X: number, Y: number): boolean => {
+    if (X < 0 || Y < 0 || X >= src.w || Y >= src.h) return false;
+    const i = (Y * src.w + X) * 4, b = ref.bgAt(Math.min(Math.max(X, A.x0), A.x1 - 1), Math.min(Math.max(Y, A.y0), A.y1 - 1));
+    return Math.abs(src.data[i] - b[0]) + Math.abs(src.data[i + 1] - b[1]) + Math.abs(src.data[i + 2] - b[2]) > T;
+  };
+  for (const { info, dx } of moved) {
+    const B = info.area, Wm = B.x1 - B.x0, sh = Math.round(dx);
+    for (let y = B.y0; y < B.y1; y++) for (let x = B.x0; x < B.x1; x++) {
+      if (!info.erase.m[(y - B.y0) * Wm + (x - B.x0)]) continue;
+      const X = x + sh;
+      glyph++;
+      if (!inOld(X, y) && (srcInk(X, y) || srcInk(X + 1, y) || srcInk(X - 1, y))) { hit++; sx += X; }
     }
   }
   const collision = glyph ? hit / glyph : 0;
@@ -496,7 +519,8 @@ async function measureQuality(src: Raster, pre: Raster, reg: Box, fresh: TextIte
 /** One number for "how wrong is this": 0 is fine. */
 function badness(q: Quality): number {
   let b = 0;
-  b += Math.max(0, q.collision - 0.02) * 6;
+  b += Math.max(0, q.collision - 0.003) * 25; // even a thin line crossing the letters is a flaw
+  b += Math.max(0, Math.abs(Math.log(Math.max(0.2, Math.min(5, q.sizeRatio)))) - 0.25) * 3; // far taller/shorter than the old text
   const w = Math.abs(Math.log(Math.max(0.2, Math.min(5, q.weight))));
   b += Math.max(0, w - 0.18) * 1.6;
   b += Math.max(0, 0.5 - q.fit) * 1.2;
@@ -515,9 +539,22 @@ function describeQuality(q: Quality): string {
 }
 
 /** The next way to try an edit, given what was wrong with the last result. */
-function nextAlternative(cur: { e: TextEdit; q: Quality; family: string; weight: number; ranking: string[] }, orig: TextEdit, lib: FontLib, tried: Set<string>): TextEdit | null {
+interface Peer { family: string; weight: number; size: number; h: number; style?: string }
+function nextAlternative(cur: { e: TextEdit; q: Quality; family: string; weight: number; ranking: string[] }, orig: TextEdit, lib: FontLib, tried: Set<string>, peers: Peer[], h: number): TextEdit | null {
   const q = cur.q;
   const cands: { key: string; e: TextEdit }[] = [];
+  // colliding: smaller, then pushed away from what it hits, then the plain whole-line way
+  if (q.collision > 0.004) {
+    cands.push({ key: 's.92', e: { ...cur.e, sizeScale: (cur.e.sizeScale ?? 1) * 0.92 } });
+    if (!orig.align || orig.align === 'center') cands.push({ key: `a${q.side > 0 ? 'R' : 'L'}`, e: { ...cur.e, align: q.side > 0 ? 'right' : 'left' } });
+    cands.push({ key: 'nw', e: { ...cur.e, noWords: true } });
+    cands.push({ key: 's.84', e: { ...cur.e, sizeScale: (cur.e.sizeScale ?? 1) * 0.84 } });
+  }
+  // the fit was disturbed (ink of something else inside the line): borrow typeface and size from a similar well-fitted line
+  if ((q.fit < 0.5 || q.squeeze > 0.15) && !orig.font) {
+    const near = peers.filter((p) => p.style === orig.style && p.h / h > 0.75 && p.h / h < 1.33).sort((a, b) => Math.abs(Math.log(a.h / h)) - Math.abs(Math.log(b.h / h)))[0];
+    if (near) cands.push({ key: 'peer', e: { ...cur.e, font: near.family, weight: orig.weight ?? near.weight, forceSize: near.size * (h / near.h), noSqueeze: true } });
+  }
   const fam = lib.entries.filter((x) => x.family === cur.family).sort((a, b) => a.weight - b.weight);
   // too thin / too heavy: the neighbouring weight of the same typeface
   if (!orig.weight && q.weight < 0.85) { const h = fam.find((x) => x.weight > cur.weight); if (h) cands.push({ key: `w${h.weight}`, e: { ...cur.e, weight: h.weight } }); }
@@ -530,13 +567,6 @@ function nextAlternative(cur: { e: TextEdit; q: Quality; family: string; weight:
   }
   // letters squeezed to fit an old line the typeface doesn't match: set them at their natural width instead
   if (q.squeeze > 0.09) cands.push({ key: 'ns', e: { ...cur.e, noSqueeze: true } });
-  // colliding: smaller, then pushed away from what it hits, then the plain whole-line way
-  if (q.collision > 0.04) {
-    cands.push({ key: 's.92', e: { ...cur.e, sizeScale: (cur.e.sizeScale ?? 1) * 0.92 } });
-    if (!orig.align || orig.align === 'center') cands.push({ key: `a${q.side > 0 ? 'R' : 'L'}`, e: { ...cur.e, align: q.side > 0 ? 'right' : 'left' } });
-    cands.push({ key: 'nw', e: { ...cur.e, noWords: true } });
-    cands.push({ key: 's.84', e: { ...cur.e, sizeScale: (cur.e.sizeScale ?? 1) * 0.84 } });
-  }
   for (const c of cands) if (!tried.has(c.key)) { tried.add(c.key); return c.e; }
   return null;
 }
@@ -579,6 +609,7 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
     });
   };
   let meta: { infos: LineInfo[]; m: MatchResult } | null = null;
+  let movedRec: { info: LineInfo; dx: number }[] = []; // kept words that were shifted by the current attempt
   const runEdit = async (i: number, e: TextEdit): Promise<void> => {
     let ocrLines: (OcrLine | undefined)[] = e.boxes?.length ? e.boxes.map(() => undefined) : e.lines.map((id) => ocr.find((o) => o.id === id));
     if (!e.boxes?.length) ocrLines = ocrLines.map((l, k) => resolveLine(ocr, l, e.old[k] ?? ''));
@@ -631,6 +662,7 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
     const fitOf = (k: number) => m.lines[pairs.findIndex((p) => p.info === infos[k])];
     const ss = e.sizeScale ?? 1;
     if (ss !== 1) for (const l of m.lines) { l.size *= ss; l.tracking *= ss; l.bold *= ss; }
+    if (e.forceSize) for (const l of m.lines) { l.size = e.forceSize; l.hs = 1; l.tracking = 0; }
     const size0 = median(m.lines.map((l) => l.size));
     const track0 = e.noSqueeze ? 0 : median(m.lines.map((l) => l.tracking));
     const hs0 = e.noSqueeze ? 1 : median(m.lines.map((l) => l.hs ?? 1));
@@ -834,8 +866,8 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
             }
           }
           if (midInfo) eraseLine(out, src, midInfo);
-          if (preInfo && Math.abs(shiftPre) >= 0.5) { eraseLine(out, src, preInfo); pasteInk(out, src, preInfo, shiftPre); }
-          if (sufInfo && Math.abs(shiftSuf) >= 0.5) { eraseLine(out, src, sufInfo); pasteInk(out, src, sufInfo, shiftSuf); }
+          if (preInfo && Math.abs(shiftPre) >= 0.5) { eraseLine(out, src, preInfo); pasteInk(out, src, preInfo, shiftPre); movedRec.push({ info: preInfo, dx: shiftPre }); }
+          if (sufInfo && Math.abs(shiftSuf) >= 0.5) { eraseLine(out, src, sufInfo); pasteInk(out, src, sufInfo, shiftSuf); movedRec.push({ info: sufInfo, dx: shiftSuf }); }
           const wordItem = midNew ? { text: midNew, key, size: wSize, tracking: wTr, hs: wHs, bold: wBold, slant: wSl, x: placeX - ext.minX, baseline: wBase, color: drawColor, raster: true, ref: midInfo ?? preInfo ?? sufInfo ?? info } : null;
           // Safety net: if old letters are still under the new word (a word box that missed part of them),
           // undo this and set the whole line instead, which clears everything.
@@ -964,6 +996,7 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
 
   // ---- Every text edit is checked before it is accepted; a bad result is redone another way ----
   let retriesLeft = 60; // per page: keeps a page with very many edits fast
+  const peers: Peer[] = []; // well-fitted edits so far: a disturbed fit can borrow their typeface and size
   const checkedRun = async (i: number, e0: TextEdit): Promise<void> => {
     const lineBoxes = (e0.boxes?.length ? e0.boxes : e0.lines.map((id) => ocr.find((o) => o.id === id)?.box)).filter(Boolean) as Box[];
     if (!lineBoxes.length || !e0.new.trim()) { await runEdit(i, e0); return; }
@@ -974,19 +1007,21 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
     type Attempt = { e: TextEdit; q: Quality; crop: Raster; items: TextItem[]; reports: EditReport[]; family: string; weight: number; ranking: string[] };
     const done: Attempt[] = [];
     const attempt = async (e: TextEdit): Promise<Attempt | null> => {
-      pasteRaster(out, base0, reg.x0, reg.y0); items.length = markItems; reports.length = markReports; meta = null;
+      pasteRaster(out, base0, reg.x0, reg.y0); items.length = markItems; reports.length = markReports; meta = null; movedRec = [];
       await runEdit(i, e);
       const mt = meta as { infos: LineInfo[]; m: MatchResult } | null;
       if (!mt) return null;
       const fresh = items.slice(markItems);
       const pre = cropRaster(out, reg); // the picture with old text gone, kept words in place, new words not yet drawn
-      const q = await measureQuality(src, pre, reg, fresh, mt.infos, mt.m, lib);
+      const q = await measureQuality(src, pre, reg, fresh, mt.infos, mt.m, lib, movedRec);
       if (e.noSqueeze) q.squeeze = 0;
+      if (e.forceSize) { q.fit = 0.8; q.sizeRatio = 1; q.weight = 1; q.squeeze = 0; } // borrowed from a trusted line: this line's own (disturbed) ink is no reference
       if (e0.weight) q.weight = 1; // a weight was asked for: it is not a flaw that it differs from the old line
       // draw the new words into the picture now (they can then be checked and undone like everything else)
       const kept: TextItem[] = [];
       for (const it of fresh) { if (it.raster) await rasterizeInto(out, it, lib, (it as any).ref); else kept.push(it); }
       items.length = markItems; items.push(...kept);
+      if (typeof process !== 'undefined' && process.env?.DBGQ) console.error('DBGQ', i, JSON.stringify({ font: e.font, weight: e.weight, ss: e.sizeScale, nw: e.noWords, ns: e.noSqueeze, align: e.align }), mt.m.family, mt.m.weight, JSON.stringify({ ...q, bad: +badness(q).toFixed(2) }));
       return { e, q, crop: cropRaster(out, reg), items: items.slice(markItems), reports: reports.slice(markReports), family: mt.m.family, weight: mt.m.weight, ranking: mt.m.ranking.map((r) => r.key) };
     };
     let first: Attempt | null = null;
@@ -996,8 +1031,8 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
     try {
       let cur = first;
       const tried = new Set<string>();
-      for (let n = 0; n < 4 && retriesLeft > 0 && badness(cur.q) > 0.12; n++) {
-        const alt = nextAlternative(cur, e0, lib, tried);
+      for (let n = 0; n < 4 && retriesLeft > 0 && badness(cur.q) > 0.06; n++) {
+        const alt = nextAlternative(cur, e0, lib, tried, peers, uh);
         if (!alt) break;
         retriesLeft--;
         const a = await attempt(alt);
@@ -1005,7 +1040,7 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
         done.push(a);
         if (badness(a.q) < badness(cur.q)) cur = a;
       }
-    } catch { /* keep the best so far */ }
+    } catch (err) { if (typeof process !== 'undefined' && process.env?.DBGQ) console.error('DBGQ-ERR', err); /* keep the best so far */ }
     const best = done.reduce((a, b) => (badness(b.q) < badness(a.q) - 0.02 ? b : a));
     pasteRaster(out, base0, reg.x0, reg.y0); items.length = markItems; reports.length = markReports;
     pasteRaster(out, best.crop, reg.x0, reg.y0); items.push(...best.items); reports.push(...best.reports);
@@ -1013,6 +1048,7 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
     if (rep && best !== first) rep.warnings.push('Resultatet kontrollerades och gjordes om på ett annat sätt (för att undvika krock/fel stil).');
     if (rep && badness(best.q) > 0.3) rep.warnings.push(`Kontrollen är inte nöjd: ${describeQuality(best.q)}`);
     (rep as any).quality = best.q;
+    if (rep && badness(best.q) < 0.15 && best.q.fit > 0.6 && rep.sizePx) peers.push({ family: best.family, weight: best.weight, size: rep.sizePx, h: uh, style: e0.style });
   };
   for (const i of [...removals, ...(moves.length ? [-1] : []), ...textOrder.filter((i) => !removals.includes(i))]) {
     if (i === -1) { placeMoves(); continue; }
