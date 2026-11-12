@@ -694,6 +694,8 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
         const same = (a: string, b: string) => a === b || edge(a) === edge(b);
         let p = 0; while (p < ow.length && p < nw.length && same(ow[p], nw[p])) p++;
         let s = 0; while (s < ow.length - p && s < nw.length - p && same(ow[ow.length - 1 - s], nw[nw.length - 1 - s])) s++;
+        // a requested weight belongs to the whole named thing: words that follow the changed ones are redrawn in that weight too (words before them stay as they were)
+        if (e.weight && p > 0 || (e.weight && p === 0 && s < ow.length)) s = 0;
         let wb = (p > 0 || s > 0) ? (wordBoxes(ocrLines[li], oldL) ?? inkWords(info, oldL)) : null;
         // low-resolution working picture (vector page): only a changed word that keeps
         // its neighbours in place can be swapped alone (as vector text); otherwise the line
