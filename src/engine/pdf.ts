@@ -7,6 +7,9 @@ import fontkit from '@pdf-lib/fontkit';
 import type { Raster } from './raster';
 import { FontLib, FEATURES } from './fonts';
 
+/** BaseFont names of the page last opened with readPage (e.g. 'Helvetica-Bold'): the engine uses them as a hint for which typeface the page really uses. */
+export const pageFontHints: { names: string[] } = { names: [] };
+
 export interface PageImage {
   /** 'swap': the page is one JPEG picture, swapped in place. 'render': anything
    * else (an already-edited file, several pictures, real text): the page is
@@ -96,6 +99,7 @@ export async function readPage(bytes: Uint8Array, codec: Codec, pageIndex = 0): 
   catch (e: any) {
     if (/encrypt/i.test(String(e?.message))) {
       // locked against editing but openable without a password: draw the page and rebuild it from the picture
+      pageFontHints.names = [];
       const locked = new Error('PDF:en är lösenordsskyddad eller låst. Spara en olåst kopia och försök igen.');
       try {
         const probe = await codec.renderPage(bytes, pageIndex, 1);
@@ -114,6 +118,15 @@ export async function readPage(bytes: Uint8Array, codec: Codec, pageIndex = 0): 
   const page = doc.getPage(pageIndex);
   const { width: pageW, height: pageH } = page.getSize();
   const mb = page.getMediaBox();
+  pageFontHints.names = [];
+  try {
+    const fonts = page.node.Resources()?.lookup(PDFName.of('Font')) as PDFDict | undefined;
+    for (const [, ref] of fonts?.entries() ?? []) {
+      const f: any = ref instanceof PDFRef ? doc.context.lookup(ref) : ref;
+      const bf = f?.get?.(PDFName.of('BaseFont'))?.toString?.();
+      if (bf) pageFontHints.names.push(String(bf).replace(/^\//, '').replace(/^[A-Z]{6}\+/, ''));
+    }
+  } catch { /* no hint */ }
   const contents = page.node.Contents();
   const streams: PDFRawStream[] = [];
   if (contents instanceof PDFArray) for (let i = 0; i < contents.size(); i++) streams.push(contents.lookup(i) as PDFRawStream);

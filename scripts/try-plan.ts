@@ -12,12 +12,13 @@ const [f, out, spec] = process.argv.slice(2);
 const bytes = new Uint8Array(await readFile(f));
 const isPdf = /\.pdf$/i.test(f);
 const { image, raster } = isPdf ? await readPage(bytes, codec, 0) : await readImage(bytes, 'image/png', codec);
-let ocr: OcrLine[] = [];
+let ocr: OcrLine[] | null = null;
 const cacheF = process.env.OCRCACHE ? process.env.OCRCACHE + '/' + f.split('/').pop() + '.json' : '';
 try { if (cacheF) ocr = JSON.parse(await readFile(cacheF, 'utf8')); } catch { /* not cached yet */ }
 if (!ocr) { ocr = await ocrRaster(raster); await closeOcr(); if (cacheF) await writeFile(cacheF, JSON.stringify(ocr)); }
-if (process.env.SHRINK) for (const l of ocr) { const w = l.words; if (w && w.length >= 2) { const b = w[w.length - 1].box; b.x0 += (b.x1 - b.x0) * +process.env.SHRINK; } } // test: word boxes that miss part of the letters
-console.log('OCR:', ocr.map((o) => `${o.id}:${o.rot ? '↻' : ''}${o.text}`).join(' | '));
+const OCR: OcrLine[] = ocr;
+if (process.env.SHRINK) for (const l of OCR) { const w = l.words; if (w && w.length >= 2) { const b = w[w.length - 1].box; b.x0 += (b.x1 - b.x0) * +process.env.SHRINK; } } // test: word boxes that miss part of the letters
+console.log('OCR:', OCR.map((o) => `${o.id}:${o.rot ? '↻' : ''}${o.text}`).join(' | '));
 const lib = await makeLib();
 const edits: Edit[] = [];
 for (const e of JSON.parse(spec)) {
@@ -25,7 +26,7 @@ for (const e of JSON.parse(spec)) {
     const re = new RegExp(e.sub[0], 'g'); let n = 0;
     const fmt = (v: number) => String(Math.round(v)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
     const rep = (m: string, ...g: any[]): string => e.sub[1] === '$UPPER' ? m.toUpperCase() : e.sub[1] === '$CM2' ? fmt(parseFloat(g[0].replace(/\s/g, '').replace(',', '.')) * 10000) + ' cm²' : e.sub[1] === '$MM2' ? fmt(parseFloat(g[0].replace(/\s/g, '').replace(',', '.')) * 1000000) + ' mm²' : m.replace(new RegExp(e.sub[0]), e.sub[1]);
-    for (const x of ocr) {
+    for (const x of OCR) {
       re.lastIndex = 0; if (!re.test(x.text)) continue; re.lastIndex = 0;
       let old = x.text; for (const [a, b] of e.fixold ?? []) old = old.replace(new RegExp(a, 'g'), b);
       const nt = old.replace(re, rep as any);
@@ -35,10 +36,10 @@ for (const e of JSON.parse(spec)) {
   }
   if (e.swap) { // swap two labels (name + the area line right below each): text swap, centred
     const [A, B] = e.swap;
-    const nameOf = (t: string) => ocr.find((o: OcrLine) => o.text.trim() === t);
+    const nameOf = (t: string) => OCR.find((o: OcrLine) => o.text.trim() === t);
     const a = nameOf(A), b = nameOf(B);
     if (!a || !b) { console.log('NOT FOUND swap', A, B); continue; }
-    const below = (l: OcrLine) => ocr.filter((o: OcrLine) => /m[²2?]/.test(o.text) && o.box.y0 >= l.box.y1 - 4 && o.box.y0 - l.box.y1 < 90 && Math.abs((o.box.x0 + o.box.x1) / 2 - (l.box.x0 + l.box.x1) / 2) < 120).sort((p, q) => p.box.y0 - q.box.y0)[0];
+    const below = (l: OcrLine) => OCR.filter((o: OcrLine) => /m[²2?]/.test(o.text) && o.box.y0 >= l.box.y1 - 4 && o.box.y0 - l.box.y1 < 90 && Math.abs((o.box.x0 + o.box.x1) / 2 - (l.box.x0 + l.box.x1) / 2) < 120).sort((p, q) => p.box.y0 - q.box.y0)[0];
     const pairs: [OcrLine, string][] = [[a, B], [b, A]];
     const ar = [below(a), below(b)];
     for (const [l, t] of pairs) edits.push({ kind: 'text', lines: [l.id], old: [l.text.trim()], new: t, align: 'center', style: 'sans', group: 'rum' });
@@ -46,18 +47,18 @@ for (const e of JSON.parse(spec)) {
     continue;
   }
   if (e.finds) { // a paragraph over several OCR lines: finds = start of each line, old = the lines' text
-    const ids = e.finds.map((f: string) => ocr.find((o: OcrLine) => o.text.includes(f))?.id);
+    const ids = e.finds.map((f: string) => OCR.find((o: OcrLine) => o.text.includes(f))?.id);
     if (ids.some((x: any) => x === undefined)) { console.log('NOT FOUND', e.finds.join(' / ')); continue; }
     edits.push({ kind: 'text', lines: ids, old: e.old, new: e.new, align: e.align ?? 'left', style: e.style, group: e.group, weight: e.weight }); continue;
   }
-  const h = e.box ? [] : ocr.filter((o: OcrLine) => (e.exact ? o.text.trim() === e.find : o.text.includes(e.find)));
+  const h = e.box ? [] : OCR.filter((o: OcrLine) => (e.exact ? o.text.trim() === e.find : o.text.includes(e.find)));
   if (!h.length && !e.box) { console.log('NOT FOUND', e.find); continue; }
   if (e.box) { const k = e.refW ? raster.w / e.refW : 1; /* box given for a picture e.refW wide */ const bx = { x0: e.box.x0 * k, y0: e.box.y0 * k, x1: e.box.x1 * k, y1: e.box.y1 * k }; edits.push({ kind: 'text', lines: [], boxes: [bx], old: [e.old], new: e.new, align: e.align ?? 'left', style: e.style, group: e.group, weight: e.weight }); continue; }
   for (const x of h) edits.push({ kind: 'text', lines: [x.id], old: [e.old ?? x.text], new: e.new, align: e.align ?? 'left', style: e.style, group: e.group, weight: e.weight });
 }
 const vectorOnly = image.mode === 'render' && (image.ppi ?? 300) < 200;
 console.log('mode', image.mode, 'ppi', image.ppi, 'vectorOnly', vectorOnly);
-const res = await applyEditsRot(raster, ocr, edits, lib, undefined, { vectorOnly });
+const res = await applyEditsRot(raster, OCR, edits, lib, undefined, { vectorOnly });
 if (process.env.STRAY) for (let y = 40; y < 90; y++) for (let x = 40; x < 90; x++) { const i = (y * res.raster.w + x) * 4; res.raster.data[i] = 255; res.raster.data[i + 1] = 255; res.raster.data[i + 2] = 255; } // test: damage outside every edit
 console.log('SELFCHECK', JSON.stringify(selfCheck(raster, res, edits)));
 for (const r of res.reports) console.log(r.index, r.mode, r.font, JSON.stringify((edits[r.index] as any).new), r.warnings.join(' '));

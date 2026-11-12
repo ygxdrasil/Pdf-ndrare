@@ -4,6 +4,7 @@
 //   rest of the line keeps its original pixels (moved sideways if needed).
 // - Otherwise the line/block is erased and set again in the matched font.
 
+import { pageFontHints } from './pdf';
 import { Box, Raster, RGB, cloneRaster, cropRaster, pasteRaster, median, unionBox, padBox, clampBox, px, dist, makeMask, dilate } from './raster';
 import { analyzeLine, LineInfo } from './analyze';
 import { eraseArea, eraseBox, eraseLine, surfaceModel } from './erase';
@@ -412,6 +413,7 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
   const out = cloneRaster(base ?? src);
   const items: TextItem[] = [];
   const reports: EditReport[] = [];
+  let pageFamily: string | undefined;
   // 1. removals, 2. moves (all sources lifted first, then placed), 3. text
   for (let i = 0; i < edits.length; i++) {
     const e = edits[i];
@@ -471,6 +473,28 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
     if (!pairs.length) pairs = infos.slice(0, 1).map((info) => ({ info, text: e.new.split('\n')[0].trim() || 'Aa' }));
     const fam = e.font ? lib.entries.find((x) => x.family.toLowerCase() === e.font!.toLowerCase())?.family : undefined;
     let m = await matchFont(lib, pairs, fam ? { families: [fam] } : { style: e.style ?? 'any' });
+    // A short label gives weak evidence for a typeface ("Hall", "Bedroom 2"): lean towards the typeface the page's longest lines use
+    if (!fam && !e.font) {
+      const letters = pairs.map((q) => q.text).join('').replace(/[^\p{L}]/gu, '').length;
+      // the PDF itself says which typeface the page uses (Helvetica = Arimo, Times = Termes): the best evidence there is
+      const names = pageFontHints.names;
+      const want = (e.style === 'serif' ? /times/i : /helvetica|arial/i);
+      const hint = names.some((n) => want.test(n)) ? (e.style === 'serif' ? 'Termes PA' : 'Arimo') : '';
+      if (hint && lib.entries.some((x) => x.family === hint) && hint !== m.family) {
+        try { const alt = await matchFont(lib, pairs, { families: [hint] }); if (alt.score > m.score - (letters <= 14 ? 0.35 : 0.12)) m = alt; } catch { /* can't write it */ }
+      } else if (!hint && letters <= 14) {
+        pageFamily ??= await (async () => {
+          let best: { info: LineInfo; text: string } | null = null;
+          // the longest clean OCR line of the page (best evidence), else the longest edited line
+          for (const l of ocr) { const t = l.text.trim(); const lt = t.replace(/[^\p{L}]/gu, '').length; if (t.length >= 18 && lt / t.length > 0.75 && (l.conf ?? 100) >= 70 && t.length > (best?.text.length ?? 0)) best = { info: analyzeLine(src, l.box), text: t }; }
+          if (!best) for (const x of edits) if (x.kind === 'text') x.lines.forEach((id, k) => { const l = ocr.find((o) => o.id === id); const t = (x.old[k] ?? l?.text ?? '').trim(); if (l && t.length > (best?.text.length ?? 15)) best = { info: analyzeLine(src, l.box), text: t }; });
+          return best ? (await matchFont(lib, [best], { style: e.style ?? 'any' })).family : '';
+        })();
+        if (pageFamily && pageFamily !== m.family) {
+          try { const alt = await matchFont(lib, pairs, { families: [pageFamily] }); if (alt.score > m.score - 0.15) m = alt; } catch { /* the page family can't write it */ }
+        }
+      }
+    }
     if (e.weight) { const want = lib.find(m.family, e.weight); if (want) m = await matchFont(lib, pairs, { families: [m.family], prefer: want.key, preferTol: 10 }); }
     const font = await lib.load(m.key);
     const fitOf = (k: number) => m.lines[pairs.findIndex((p) => p.info === infos[k])];
@@ -502,7 +526,9 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
         const size = consistent ? size0 : fit.size, tr = consistent ? track0 : fit.tracking, base = fit.baseline;
         const hs = consistent ? hs0 : fit.hs, bold = consistent ? bold0 : fit.bold;
         const ow = words(oldL), nw = words(newL);
-        const same = (a: string, b: string) => a === b || simpleKey(a) === simpleKey(b);
+        // (numbers must match as written: "11,7" and "117" are different values; for words OCR/AI differences in punctuation are ignored)
+        const edge = (w: string) => w.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '').toLowerCase();
+        const same = (a: string, b: string) => a === b || (/\d/.test(a) || /\d/.test(b) ? edge(a) === edge(b) : simpleKey(a) === simpleKey(b));
         let p = 0; while (p < ow.length && p < nw.length && same(ow[p], nw[p])) p++;
         let s = 0; while (s < ow.length - p && s < nw.length - p && same(ow[ow.length - 1 - s], nw[nw.length - 1 - s])) s++;
         let wb = (p > 0 || s > 0) ? (wordBoxes(ocrLines[li], oldL) ?? inkWords(info, oldL)) : null;
@@ -586,17 +612,18 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
           // with no shift, a right/centre aligned word sits where the old one ended / was centred
           let placeX = sameWidth && align !== 'left' ? (align === 'right' ? oldX1 - newW : (oldX0 + oldX1) / 2 - newW / 2) : oldX0 + shiftPre;
           let shiftSuf = align === 'center' ? delta / 2 : align === 'right' ? 0 : delta;
-          if (delta > 0.5 && midInfo && midNew) {
+          if (delta > 0.5 && midNew && (midInfo || sufInfo || preInfo)) {
+            const anchor = (midInfo ?? sufInfo ?? preInfo)!; // (an inserted word has no old ink of its own: use its neighbour)
             // A longer word needs room. Take it from wide word gaps first (justified text),
             // then from free space beside the line, never pushing into other text; only the
             // side(s) the alignment allows move. Not enough room: squeeze the word a little.
-            const free = (x: number, dir: 1 | -1) => freeRun(src, midInfo.inkBox, x, dir, Math.round(wSize * 3), info.thresh);
+            const free = (x: number, dir: 1 | -1) => freeRun(src, anchor.inkBox, x, dir, Math.round(wSize * 3), info.thresh);
             const keep = wSize * 0.3;
             // a word gap may close down to about one normal space, never tighter ("10,2cm²" looks glued)
             const slackR = sufInfo ? Math.max(0, sufInfo.inkBox.x0 - oldX1 - space * 0.95) : 0;
             const slackL = preInfo ? Math.max(0, oldX0 - preInfo.inkBox.x1 - space * 0.95) : 0;
-            const roomR = align === 'right' ? 0 : Math.max(0, free((sufInfo ?? midInfo).inkBox.x1, 1) - keep);
-            const roomL = align === 'left' ? 0 : Math.max(0, free((preInfo ?? midInfo).inkBox.x0, -1) - keep);
+            const roomR = align === 'right' ? 0 : Math.max(0, free((sufInfo ?? anchor).inkBox.x1, 1) - keep);
+            const roomL = align === 'left' ? 0 : Math.max(0, free((preInfo ?? anchor).inkBox.x0, -1) - keep);
             const capR = slackR + roomR, capL = slackL + roomL;
             let gR = Math.min(capR, align === 'left' ? delta : align === 'right' ? 0 : delta / 2);
             const gL = Math.min(capL, delta - gR);
