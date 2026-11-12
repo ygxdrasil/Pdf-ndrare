@@ -3,6 +3,7 @@
 #   scripts/suite.sh <inputdir> <specs.json> <workdir> [name ...]
 # specs.json = { "<file stem>": [ <try-plan edits> ] }. Nothing is tuned between files; the score counts files
 # where the engine itself reported no remaining problem ("Att titta på" / "Kontrollen är inte nöjd").
+cd "$(dirname "$0")/.." || exit 1
 IN="$1"; SPECS="$2"; W="$3"; shift 3
 mkdir -p "$W/res" "$W/ocr"; rm -f "$W/res/PROGRESS"
 names=("$@"); [ ${#names[@]} -eq 0 ] && names=($(python3 -c "import json,sys;print(' '.join(json.load(open('$SPECS')).keys()))"))
