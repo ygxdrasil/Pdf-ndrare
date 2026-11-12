@@ -505,9 +505,9 @@ async function measureQuality(src: Raster, pre: Raster, reg: Box, fresh: TextIte
   // old line's stroke thickness
   const oldCov = ref.cov, ow = A.x1 - A.x0, oh = A.y1 - A.y0;
   const tOld = strokeThickness(oldCov, ow, oh);
-  // thickness relative to the letters' height (so a bigger size doesn't pass for a bolder weight)
-  const hOld0 = Math.max(1, ref.inkBox.y1 - ref.inkBox.y0), hNew0 = maxY > minY ? maxY - minY + 1 : hOld0;
-  const weight = thickW > 0 && tOld > 0 ? (thickN / thickW / hNew0) / (tOld / hOld0) : 1;
+  // thickness relative to the type size (letter shapes - capitals, digits - change ink height, not weight)
+  const sizeNew = fresh.length ? fresh.reduce((a, f) => a + f.size, 0) / fresh.length : 1, sizeOld = Math.max(1, median(m.lines.map((l) => l.size)));
+  const weight = thickW > 0 && tOld > 0 ? (thickN / thickW / Math.max(1, sizeNew)) / (tOld / sizeOld) : 1;
   // size: height of the new ink against the old ink (only meaningful when both are one line)
   const hOld = Math.max(1, ref.inkBox.y1 - ref.inkBox.y0), hNew = maxY > minY ? maxY - minY : hOld;
   // letters squeezed or stretched (or spaced very tight/loose) to fit an old line that the typeface doesn't really match
