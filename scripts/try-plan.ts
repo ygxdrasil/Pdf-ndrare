@@ -30,7 +30,7 @@ for (const e of JSON.parse(spec)) {
       re.lastIndex = 0; if (!re.test(x.text)) continue; re.lastIndex = 0;
       let old = x.text; for (const [a, b] of e.fixold ?? []) old = old.replace(new RegExp(a, 'g'), b);
       const nt = old.replace(re, rep as any);
-      if (nt !== old || e.force) { edits.push({ kind: 'text', lines: [x.id], old: [old], new: nt, align: e.align ?? 'left', style: e.style, group: e.group, weight: e.weight }); n++; }
+      if (nt !== old || e.force) { edits.push({ kind: 'text', lines: [x.id], old: [old], new: nt, align: e.align, style: e.style, group: e.group, weight: e.weight }); n++; }
     }
     console.log('SUB', e.sub[0], '->', n, 'lines'); continue;
   }
@@ -49,12 +49,12 @@ for (const e of JSON.parse(spec)) {
   if (e.finds) { // a paragraph over several OCR lines: finds = start of each line, old = the lines' text
     const ids = e.finds.map((f: string) => OCR.find((o: OcrLine) => o.text.includes(f))?.id);
     if (ids.some((x: any) => x === undefined)) { console.log('NOT FOUND', e.finds.join(' / ')); continue; }
-    edits.push({ kind: 'text', lines: ids, old: e.old, new: e.new, align: e.align ?? 'left', style: e.style, group: e.group, weight: e.weight }); continue;
+    edits.push({ kind: 'text', lines: ids, old: e.old, new: e.new, align: e.align, style: e.style, group: e.group, weight: e.weight }); continue;
   }
   const h = e.box ? [] : OCR.filter((o: OcrLine) => (e.exact ? o.text.trim() === e.find : o.text.includes(e.find)));
   if (!h.length && !e.box) { console.log('NOT FOUND', e.find); continue; }
-  if (e.box) { const k = e.refW ? raster.w / e.refW : 1; /* box given for a picture e.refW wide */ const bx = { x0: e.box.x0 * k, y0: e.box.y0 * k, x1: e.box.x1 * k, y1: e.box.y1 * k }; edits.push({ kind: 'text', lines: [], boxes: [bx], old: [e.old], new: e.new, align: e.align ?? 'left', style: e.style, group: e.group, weight: e.weight }); continue; }
-  for (const x of h) edits.push({ kind: 'text', lines: [x.id], old: [e.old ?? x.text], new: e.new, align: e.align ?? 'left', style: e.style, group: e.group, weight: e.weight });
+  if (e.box) { const k = e.refW ? raster.w / e.refW : 1; /* box given for a picture e.refW wide */ const bx = { x0: e.box.x0 * k, y0: e.box.y0 * k, x1: e.box.x1 * k, y1: e.box.y1 * k }; edits.push({ kind: 'text', lines: [], boxes: [bx], old: [e.old], new: e.new, align: e.align, style: e.style, group: e.group, weight: e.weight }); continue; }
+  for (const x of h) edits.push({ kind: 'text', lines: [x.id], old: [e.old ?? x.text], new: e.new, align: e.align, style: e.style, group: e.group, weight: e.weight });
 }
 const vectorOnly = image.mode === 'render' && (image.ppi ?? 300) < 200;
 console.log('mode', image.mode, 'ppi', image.ppi, 'vectorOnly', vectorOnly);

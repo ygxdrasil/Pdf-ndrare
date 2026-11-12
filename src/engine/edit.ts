@@ -63,8 +63,25 @@ const norm = (s: string) => s.replace(/\s+/g, ' ').trim();
 const words = (s: string) => norm(s).split(' ').filter(Boolean);
 const simpleKey = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
 
-function detectAlign(infos: LineInfo[]): 'left' | 'center' | 'right' {
-  if (infos.length < 2) return 'left';
+/**
+ * Alignment of a lone line, judged from the lines around it: a column of numbers shares its right edge,
+ * a label with a caption stacked right under it shares its centre; otherwise left.
+ */
+function alignFromNeighbours(box: Box, ocr: OcrLine[], self?: OcrLine): 'left' | 'center' | 'right' {
+  const h = Math.max(1, box.y1 - box.y0), tol = Math.max(3, h * 0.25);
+  const near = ocr.filter((o) => o !== self && o.text.trim().length > 0 && (o.box.y1 - o.box.y0) > h * 0.5 && (o.box.y1 - o.box.y0) < h * 2 && Math.abs((o.box.y0 + o.box.y1) / 2 - (box.y0 + box.y1) / 2) < h * 14);
+  const cx = (b: Box) => (b.x0 + b.x1) / 2;
+  // centred: a line right above/below (within ~2 line heights) whose centre matches although its edges don't
+  const stacked = near.filter((o) => Math.abs(o.box.y0 - box.y1) < h * 1.6 || Math.abs(box.y0 - o.box.y1) < h * 1.6);
+  if (stacked.some((o) => Math.abs(cx(o.box) - cx(box)) < tol && Math.abs(o.box.x0 - box.x0) > tol * 1.5 && Math.abs(o.box.x1 - box.x1) > tol * 1.5)) return 'center';
+  // right: at least two other lines in the same column end at the same x (and don't start at the same x)
+  const colR = near.filter((o) => Math.abs(o.box.x1 - box.x1) < tol && Math.abs(o.box.x0 - box.x0) > tol);
+  if (colR.length >= 2) return 'right';
+  return 'left';
+}
+
+function detectAlign(infos: LineInfo[], ocr: OcrLine[] = [], self?: OcrLine): 'left' | 'center' | 'right' {
+  if (infos.length < 2) return alignFromNeighbours(infos[0]?.box ?? { x0: 0, y0: 0, x1: 1, y1: 1 }, ocr, self);
   const spread = (v: number[]) => Math.max(...v) - Math.min(...v);
   const l = spread(infos.map((i) => i.inkBox.x0));
   const c = spread(infos.map((i) => (i.inkBox.x0 + i.inkBox.x1) / 2));
@@ -505,7 +522,7 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
     const hs0 = median(m.lines.map((l) => l.hs ?? 1));
     const bold0 = median(m.lines.map((l) => l.bold ?? 0));
     const color: RGB = [median(infos.map((x) => x.color[0])), median(infos.map((x) => x.color[1])), median(infos.map((x) => x.color[2]))];
-    const align = e.align ?? detectAlign(infos);
+    const align = e.align ?? detectAlign(infos, ocr, ocrLines[0]);
     const baselines = m.lines.map((l) => l.baseline).sort((a, b) => a - b);
     const pitch = baselines.length > 1 ? median(baselines.slice(1).map((b, k) => b - baselines[k])) : size0 * 1.25;
     const blockX0 = Math.min(...infos.map((x) => x.inkBox.x0));
