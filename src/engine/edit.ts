@@ -38,6 +38,10 @@ export interface TextEdit {
   weight?: number;
   group?: string;
   sizeScale?: number;
+  /** internal: skip the replace-only-the-changed-words mode (set when a retry should redo the whole line) */
+  noWords?: boolean;
+  /** internal: letters at their natural width and spacing (a retry when the fit had to squeeze them) */
+  noSqueeze?: boolean;
 }
 
 export interface EraseEdit { kind: 'erase'; box: Box }
@@ -426,6 +430,117 @@ async function overlapRatio(out: Raster, src: Raster, it: { text: string; key: s
   return glyph ? over / glyph : 0;
 }
 
+
+// ---------------------------------------------------------------------------
+// Result checks
+// ---------------------------------------------------------------------------
+export interface Quality { collision: number; weight: number; fit: number; sizeRatio: number; side: number; squeeze: number }
+
+/** Stroke thickness of a soft ink mask: 2 x area / perimeter (the perimeter is the total variation, so blur doesn't change it). */
+function strokeThickness(cov: ArrayLike<number>, W: number, H: number): number {
+  let a = 0, tv = 0;
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const v = cov[y * W + x]; a += v;
+    if (x + 1 < W) tv += Math.abs(v - cov[y * W + x + 1]);
+    if (y + 1 < H) tv += Math.abs(v - cov[(y + 1) * W + x]);
+  }
+  return tv > 0 ? (2 * a) / tv : 0;
+}
+
+/**
+ * Looks at what an edit produced (before its new words are drawn into `pre`):
+ *  collision - how much of the new letters lies on ink that is not theirs (a wall, a box, another word, a ghost of the old text)
+ *  weight    - stroke thickness of the new letters against the old line (1 = same)
+ *  fit       - how well the chosen typeface matched the old line (0..1)
+ *  side      - where a collision is (-1 left .. 1 right), to pick a better alignment
+ */
+async function measureQuality(src: Raster, pre: Raster, reg: Box, fresh: TextItem[], infos: LineInfo[], m: MatchResult, lib: FontLib): Promise<Quality> {
+  const ref = infos[0];
+  const T = Math.max(60, ref.thresh * 1.5);
+  const A = ref.area;
+  let glyph = 0, hit = 0, sx = 0, thickN = 0, thickW = 0, minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9;
+  for (const it of fresh) {
+    const gc = await glyphCoverage(it, lib);
+    if (!gc) continue;
+    const { x0, y0, W, H, cov } = gc;
+    const t = strokeThickness(cov, W, H);
+    let sum = 0; for (let k = 0; k < cov.length; k++) sum += cov[k];
+    if (t > 0) { thickN += t * sum; thickW += sum; }
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      if (cov[y * W + x] <= 0.5) continue;
+      const X = x0 + x, Y = y0 + y;
+      glyph++; minX = Math.min(minX, X); maxX = Math.max(maxX, X); minY = Math.min(minY, Y); maxY = Math.max(maxY, Y);
+      if (X < reg.x0 || X >= reg.x1 || Y < reg.y0 || Y >= reg.y1) continue;
+      const p = pre.data, i = ((Y - reg.y0) * pre.w + (X - reg.x0)) * 4;
+      const b = ref.bgAt(Math.min(Math.max(X, A.x0), A.x1 - 1), Math.min(Math.max(Y, A.y0), A.y1 - 1));
+      if (Math.abs(p[i] - b[0]) + Math.abs(p[i + 1] - b[1]) + Math.abs(p[i + 2] - b[2]) > T) { hit++; sx += X; }
+    }
+  }
+  const collision = glyph ? hit / glyph : 0;
+  const cxNew = (minX + maxX) / 2;
+  const side = hit ? Math.max(-1, Math.min(1, (sx / hit - cxNew) / Math.max(1, (maxX - minX) / 2))) : 0;
+  // old line's stroke thickness
+  const oldCov = ref.cov, ow = A.x1 - A.x0, oh = A.y1 - A.y0;
+  const tOld = strokeThickness(oldCov, ow, oh);
+  // thickness relative to the letters' height (so a bigger size doesn't pass for a bolder weight)
+  const hOld0 = Math.max(1, ref.inkBox.y1 - ref.inkBox.y0), hNew0 = maxY > minY ? maxY - minY + 1 : hOld0;
+  const weight = thickW > 0 && tOld > 0 ? (thickN / thickW / hNew0) / (tOld / hOld0) : 1;
+  // size: height of the new ink against the old ink (only meaningful when both are one line)
+  const hOld = Math.max(1, ref.inkBox.y1 - ref.inkBox.y0), hNew = maxY > minY ? maxY - minY : hOld;
+  // letters squeezed or stretched (or spaced very tight/loose) to fit an old line that the typeface doesn't really match
+  const hs = median(m.lines.map((l) => l.hs ?? 1)), trk = median(m.lines.map((l) => Math.abs(l.tracking) / Math.max(1, l.size)));
+  const squeeze = Math.max(Math.abs(Math.log(hs)), trk * 3);
+  return { collision, weight, fit: m.score, sizeRatio: hNew / hOld, side, squeeze };
+}
+
+/** One number for "how wrong is this": 0 is fine. */
+function badness(q: Quality): number {
+  let b = 0;
+  b += Math.max(0, q.collision - 0.02) * 6;
+  const w = Math.abs(Math.log(Math.max(0.2, Math.min(5, q.weight))));
+  b += Math.max(0, w - 0.18) * 1.6;
+  b += Math.max(0, 0.5 - q.fit) * 1.2;
+  b += Math.max(0, q.squeeze - 0.07) * 3;
+  return b;
+}
+
+function describeQuality(q: Quality): string {
+  const parts: string[] = [];
+  if (q.collision > 0.05) parts.push('nya texten ligger över annat');
+  if (q.weight < 0.8) parts.push('texten är tunnare än originalet');
+  if (q.weight > 1.25) parts.push('texten är fetare än originalet');
+  if (q.fit < 0.5) parts.push('typsnittet passar bara ungefär');
+  if (q.squeeze > 0.1) parts.push('bokstäverna är hoptryckta eller utdragna');
+  return parts.join(', ') || 'osäker';
+}
+
+/** The next way to try an edit, given what was wrong with the last result. */
+function nextAlternative(cur: { e: TextEdit; q: Quality; family: string; weight: number; ranking: string[] }, orig: TextEdit, lib: FontLib, tried: Set<string>): TextEdit | null {
+  const q = cur.q;
+  const cands: { key: string; e: TextEdit }[] = [];
+  const fam = lib.entries.filter((x) => x.family === cur.family).sort((a, b) => a.weight - b.weight);
+  // too thin / too heavy: the neighbouring weight of the same typeface
+  if (!orig.weight && q.weight < 0.85) { const h = fam.find((x) => x.weight > cur.weight); if (h) cands.push({ key: `w${h.weight}`, e: { ...cur.e, weight: h.weight } }); }
+  if (!orig.weight && q.weight > 1.2) { const l = [...fam].reverse().find((x) => x.weight < cur.weight); if (l) cands.push({ key: `w${l.weight}`, e: { ...cur.e, weight: l.weight } }); }
+  // poor typeface fit: the next best other families
+  if (!orig.font && (q.fit < 0.55 || Math.abs(Math.log(Math.max(0.2, Math.min(5, q.weight)))) > 0.3)) {
+    const fams: string[] = [];
+    for (const k of cur.ranking) { const f = lib.entry(k).family; if (f !== cur.family && !fams.includes(f)) fams.push(f); }
+    for (const f of fams.slice(0, 2)) cands.push({ key: `f${f}`, e: { ...cur.e, font: f, weight: undefined } });
+  }
+  // letters squeezed to fit an old line the typeface doesn't match: set them at their natural width instead
+  if (q.squeeze > 0.09) cands.push({ key: 'ns', e: { ...cur.e, noSqueeze: true } });
+  // colliding: smaller, then pushed away from what it hits, then the plain whole-line way
+  if (q.collision > 0.04) {
+    cands.push({ key: 's.92', e: { ...cur.e, sizeScale: (cur.e.sizeScale ?? 1) * 0.92 } });
+    if (!orig.align || orig.align === 'center') cands.push({ key: `a${q.side > 0 ? 'R' : 'L'}`, e: { ...cur.e, align: q.side > 0 ? 'right' : 'left' } });
+    cands.push({ key: 'nw', e: { ...cur.e, noWords: true } });
+    cands.push({ key: 's.84', e: { ...cur.e, sizeScale: (cur.e.sizeScale ?? 1) * 0.84 } });
+  }
+  for (const c of cands) if (!tried.has(c.key)) { tried.add(c.key); return c.e; }
+  return null;
+}
+
 export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib: FontLib, base?: Raster, opts: { vectorOnly?: boolean } = {}): Promise<Applied> {
   const out = cloneRaster(base ?? src);
   const items: TextItem[] = [];
@@ -463,10 +578,8 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
       reports.push({ index: i, warnings: [], box: unionBox([L.box, tb]), mode: 'move' });
     });
   };
-  for (const i of [...removals, ...(moves.length ? [-1] : []), ...textOrder.filter((i) => !removals.includes(i))]) {
-    if (i === -1) { placeMoves(); continue; }
-    const e = edits[i];
-    if (e.kind !== 'text') continue;
+  let meta: { infos: LineInfo[]; m: MatchResult } | null = null;
+  const runEdit = async (i: number, e: TextEdit): Promise<void> => {
     let ocrLines: (OcrLine | undefined)[] = e.boxes?.length ? e.boxes.map(() => undefined) : e.lines.map((id) => ocr.find((o) => o.id === id));
     if (!e.boxes?.length) ocrLines = ocrLines.map((l, k) => resolveLine(ocr, l, e.old[k] ?? ''));
     // OCR can read only part of big, thin lettering (e.g. "KVALSTERS" of "KVALSTERSKYDD"):
@@ -474,7 +587,7 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
     if (!e.boxes?.length) ocrLines = ocrLines.map((l, k) => (l ? extendToInk(src, l, e.old[k] ?? '') : l));
     const boxes = e.boxes?.length ? e.boxes : ocrLines.map((l) => { if (!l) throw new Error('Okänd rad.'); return l.box; });
     const infos = boxes.map((b) => analyzeLine(src, b));
-    if (!infos.length) continue; // nothing on the page to work on
+    if (!infos.length) return; // nothing on the page to work on
     let touched = unionBox(infos.map((x) => x.area));
     const grow = (x0: number, x1: number) => { touched = { ...touched, x0: Math.min(touched.x0, x0), x1: Math.max(touched.x1, x1) }; }; // new text may reach beyond the old areas
     const warnings: string[] = [];
@@ -482,7 +595,7 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
     if (!e.new.trim()) {
       for (const info of infos) eraseLine(out, src, info);
       reports.push({ index: i, warnings, box: touched, lines: 0, mode: 'remove' });
-      continue;
+      return;
     }
     // ---- font (fitted on all old lines of the block) ----
     let pairs = infos.map((info, k) => ({ info, text: (e.old[k] ?? '').trim() || ocrLines[k]?.text || '' })).filter((p) => p.text.trim());
@@ -514,12 +627,13 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
     }
     if (e.weight) { const want = lib.find(m.family, e.weight); if (want) m = await matchFont(lib, pairs, { families: [m.family], prefer: want.key, preferTol: 10 }); }
     const font = await lib.load(m.key);
+    meta = { infos, m };
     const fitOf = (k: number) => m.lines[pairs.findIndex((p) => p.info === infos[k])];
     const ss = e.sizeScale ?? 1;
     if (ss !== 1) for (const l of m.lines) { l.size *= ss; l.tracking *= ss; l.bold *= ss; }
     const size0 = median(m.lines.map((l) => l.size));
-    const track0 = median(m.lines.map((l) => l.tracking));
-    const hs0 = median(m.lines.map((l) => l.hs ?? 1));
+    const track0 = e.noSqueeze ? 0 : median(m.lines.map((l) => l.tracking));
+    const hs0 = e.noSqueeze ? 1 : median(m.lines.map((l) => l.hs ?? 1));
     const bold0 = median(m.lines.map((l) => l.bold ?? 0));
     const color: RGB = [median(infos.map((x) => x.color[0])), median(infos.map((x) => x.color[1])), median(infos.map((x) => x.color[2]))];
     const align = e.align ?? detectAlign(infos, ocr, ocrLines[0]);
@@ -544,15 +658,15 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
         const hs = consistent ? hs0 : fit.hs, bold = consistent ? bold0 : fit.bold;
         const ow = words(oldL), nw = words(newL);
         // (numbers must match as written: "11,7" and "117" are different values; for words OCR/AI differences in punctuation are ignored)
-        const edge = (w: string) => w.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '').toLowerCase();
-        const same = (a: string, b: string) => a === b || (/\d/.test(a) || /\d/.test(b) ? edge(a) === edge(b) : simpleKey(a) === simpleKey(b));
+        const edge = (w: string) => w.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '');
+        const same = (a: string, b: string) => a === b || edge(a) === edge(b);
         let p = 0; while (p < ow.length && p < nw.length && same(ow[p], nw[p])) p++;
         let s = 0; while (s < ow.length - p && s < nw.length - p && same(ow[ow.length - 1 - s], nw[nw.length - 1 - s])) s++;
         let wb = (p > 0 || s > 0) ? (wordBoxes(ocrLines[li], oldL) ?? inkWords(info, oldL)) : null;
         // low-resolution working picture (vector page): only a changed word that keeps
         // its neighbours in place can be swapped alone (as vector text); otherwise the line
         if (wb && opts.vectorOnly && p >= ow.length - s) wb = null;
-        if (wb && (p + s < ow.length || nw.length > ow.length) && (p + s) >= 1) { // a changed word, or words inserted between kept ones
+        if (wb && !e.noWords && (p + s < ow.length || nw.length > ow.length) && (p + s) >= 1) { // a changed word, or words inserted between kept ones
           // ---- word mode: replace only words p..ow.length-s-1 ----
           const midOld = wb.slice(p, ow.length - s);
           const midNew = nw.slice(p, nw.length - s).join(' ');
@@ -777,7 +891,7 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
         modes.push('line');
       }
       reports.push({ index: i, font: `${m.family} ${m.weight}`, sizePx: +size0.toFixed(1), shrunk: 1, lines: infos.length, mode: modes.join(','), warnings, match: m, box: touched });
-      continue;
+      return;
     }
 
     // ---- whole block, re-wrapped ----
@@ -846,6 +960,65 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
       items.push({ text: t, key: m.key, size, tracking: tr, hs: hs0, bold: bold0 * k, slant: infos[0].slant, x: pen, baseline: firstBase + li * pitch * k, color });
     });
     reports.push({ index: i, font: `${m.family} ${m.weight}`, sizePx: +size.toFixed(1), shrunk: +k.toFixed(3), lines: lines.length, mode: 'block', warnings, match: m, box: touched });
+  };
+
+  // ---- Every text edit is checked before it is accepted; a bad result is redone another way ----
+  let retriesLeft = 60; // per page: keeps a page with very many edits fast
+  const checkedRun = async (i: number, e0: TextEdit): Promise<void> => {
+    const lineBoxes = (e0.boxes?.length ? e0.boxes : e0.lines.map((id) => ocr.find((o) => o.id === id)?.box)).filter(Boolean) as Box[];
+    if (!lineBoxes.length || !e0.new.trim()) { await runEdit(i, e0); return; }
+    const ub = unionBox(lineBoxes), uw = ub.x1 - ub.x0, uh = ub.y1 - ub.y0;
+    const reg = clampBox({ x0: ub.x0 - Math.max(80, uw * 1.5), x1: ub.x1 + Math.max(80, uw * 1.5), y0: ub.y0 - Math.max(30, uh * 1.5), y1: ub.y1 + Math.max(30, uh * 1.5) }, out);
+    const base0 = cropRaster(out, reg);
+    const markItems = items.length, markReports = reports.length;
+    type Attempt = { e: TextEdit; q: Quality; crop: Raster; items: TextItem[]; reports: EditReport[]; family: string; weight: number; ranking: string[] };
+    const done: Attempt[] = [];
+    const attempt = async (e: TextEdit): Promise<Attempt | null> => {
+      pasteRaster(out, base0, reg.x0, reg.y0); items.length = markItems; reports.length = markReports; meta = null;
+      await runEdit(i, e);
+      const mt = meta as { infos: LineInfo[]; m: MatchResult } | null;
+      if (!mt) return null;
+      const fresh = items.slice(markItems);
+      const pre = cropRaster(out, reg); // the picture with old text gone, kept words in place, new words not yet drawn
+      const q = await measureQuality(src, pre, reg, fresh, mt.infos, mt.m, lib);
+      if (e.noSqueeze) q.squeeze = 0;
+      if (e0.weight) q.weight = 1; // a weight was asked for: it is not a flaw that it differs from the old line
+      // draw the new words into the picture now (they can then be checked and undone like everything else)
+      const kept: TextItem[] = [];
+      for (const it of fresh) { if (it.raster) await rasterizeInto(out, it, lib, (it as any).ref); else kept.push(it); }
+      items.length = markItems; items.push(...kept);
+      return { e, q, crop: cropRaster(out, reg), items: items.slice(markItems), reports: reports.slice(markReports), family: mt.m.family, weight: mt.m.weight, ranking: mt.m.ranking.map((r) => r.key) };
+    };
+    let first: Attempt | null = null;
+    try { first = await attempt(e0); } catch (err) { throw err; }
+    if (!first) return;
+    done.push(first);
+    try {
+      let cur = first;
+      const tried = new Set<string>();
+      for (let n = 0; n < 4 && retriesLeft > 0 && badness(cur.q) > 0.12; n++) {
+        const alt = nextAlternative(cur, e0, lib, tried);
+        if (!alt) break;
+        retriesLeft--;
+        const a = await attempt(alt);
+        if (!a) continue;
+        done.push(a);
+        if (badness(a.q) < badness(cur.q)) cur = a;
+      }
+    } catch { /* keep the best so far */ }
+    const best = done.reduce((a, b) => (badness(b.q) < badness(a.q) - 0.02 ? b : a));
+    pasteRaster(out, base0, reg.x0, reg.y0); items.length = markItems; reports.length = markReports;
+    pasteRaster(out, best.crop, reg.x0, reg.y0); items.push(...best.items); reports.push(...best.reports);
+    const rep = reports[reports.length - 1];
+    if (rep && best !== first) rep.warnings.push('Resultatet kontrollerades och gjordes om på ett annat sätt (för att undvika krock/fel stil).');
+    if (rep && badness(best.q) > 0.3) rep.warnings.push(`Kontrollen är inte nöjd: ${describeQuality(best.q)}`);
+    (rep as any).quality = best.q;
+  };
+  for (const i of [...removals, ...(moves.length ? [-1] : []), ...textOrder.filter((i) => !removals.includes(i))]) {
+    if (i === -1) { placeMoves(); continue; }
+    const e0 = edits[i];
+    if (e0.kind !== 'text') continue;
+    await checkedRun(i, e0);
   }
   // Words that sit among original words are drawn into the picture itself,
   // with the same softness, so they can't be told apart from their neighbours.
@@ -904,25 +1077,34 @@ async function calibrateWeight(src: Raster, lib: FontLib, family: string, kw: Li
   return best;
 }
 
-export async function rasterizeInto(dst: Raster, it: TextItem, lib: FontLib, ref?: LineInfo) {
+/** Where a text item's letters fall: coverage 0..1 per picture pixel over a box, before any softening. */
+export async function glyphCoverage(it: TextItem, lib: FontLib): Promise<{ x0: number; y0: number; W: number; H: number; cov: Float32Array } | null> {
   const font = await lib.load(it.key);
   const ext = inkExtent(font, it.text, it.size, it.tracking, it.hs ?? 1, it.slant ?? 0);
   const pad = Math.ceil(4 + (it.bold ?? 0));
   const x0 = Math.floor(it.x + ext.minX) - pad, x1 = Math.ceil(it.x + ext.maxX) + pad;
   const y0 = Math.floor(it.baseline - it.size * 1.05) - pad, y1 = Math.ceil(it.baseline + it.size * 0.35) + pad;
   const W = x1 - x0, H = y1 - y0, S = 4;
-  if (W <= 0 || H <= 0) return;
+  if (W <= 0 || H <= 0) return null;
   const big = lib.platform.createCanvas(W * S, H * S);
   const g = big.getContext('2d');
   drawText(g, font, it.text, (it.x - x0) * S, (it.baseline - y0) * S, it.size * S, it.tracking * S, '#000', it.hs ?? 1, (it.bold ?? 0) * S, it.slant ?? 0);
   const a = g.getImageData(0, 0, W * S, H * S).data;
-  // box-downsample to picture resolution, then a light blur like the original
+  // box-downsample to picture resolution
   const cov = new Float32Array(W * H);
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     let sum = 0;
     for (let yy = 0; yy < S; yy++) for (let xx = 0; xx < S; xx++) sum += a[((y * S + yy) * W * S + x * S + xx) * 4 + 3];
     cov[y * W + x] = sum / (S * S * 255);
   }
+  return { x0, y0, W, H, cov };
+}
+
+export async function rasterizeInto(dst: Raster, it: TextItem, lib: FontLib, ref?: LineInfo) {
+  const gc = await glyphCoverage(it, lib);
+  if (!gc) return;
+  const { x0, y0, W, H, cov } = gc;
+  // a light blur like the original
   const blur = (c: Float32Array) => {
     const o = new Float32Array(W * H);
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
