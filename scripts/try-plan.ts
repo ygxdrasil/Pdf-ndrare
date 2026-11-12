@@ -60,7 +60,7 @@ const vectorOnly = image.mode === 'render' && (image.ppi ?? 300) < 200;
 console.log('mode', image.mode, 'ppi', image.ppi, 'vectorOnly', vectorOnly);
 const res = await applyEditsRot(raster, OCR, edits, lib, undefined, { vectorOnly });
 if (process.env.STRAY) for (let y = 40; y < 90; y++) for (let x = 40; x < 90; x++) { const i = (y * res.raster.w + x) * 4; res.raster.data[i] = 255; res.raster.data[i + 1] = 255; res.raster.data[i + 2] = 255; } // test: damage outside every edit
-console.log('SELFCHECK', JSON.stringify(selfCheck(raster, res, edits)));
+console.log('SELFCHECK', JSON.stringify(selfCheck(raster, res, edits, OCR)));
 for (const r of res.reports) console.log(r.index, r.mode, r.font, JSON.stringify((edits[r.index] as any).new), r.warnings.join(' '));
 if (process.env.DUMPS) await writeFile(process.env.DUMPS, await codec.encodePng(raster));
 if (process.env.DUMPR) await writeFile(process.env.DUMPR, await codec.encodePng(res.raster)); // debug: the engine's own picture

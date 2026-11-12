@@ -523,7 +523,7 @@ function badness(q: Quality): number {
   b += Math.max(0, Math.abs(Math.log(Math.max(0.2, Math.min(5, q.sizeRatio)))) - 0.25) * 3; // far taller/shorter than the old text
   const w = Math.abs(Math.log(Math.max(0.2, Math.min(5, q.weight))));
   b += Math.max(0, w - 0.18) * 1.6;
-  b += Math.max(0, 0.5 - q.fit) * 1.2;
+  b += Math.max(0, 0.65 - q.fit) * 1.2;
   b += Math.max(0, q.squeeze - 0.07) * 3;
   return b;
 }
@@ -560,10 +560,10 @@ function nextAlternative(cur: { e: TextEdit; q: Quality; family: string; weight:
   if (!orig.weight && q.weight < 0.85) { const h = fam.find((x) => x.weight > cur.weight); if (h) cands.push({ key: `w${h.weight}`, e: { ...cur.e, weight: h.weight } }); }
   if (!orig.weight && q.weight > 1.2) { const l = [...fam].reverse().find((x) => x.weight < cur.weight); if (l) cands.push({ key: `w${l.weight}`, e: { ...cur.e, weight: l.weight } }); }
   // poor typeface fit: the next best other families
-  if (!orig.font && (q.fit < 0.55 || Math.abs(Math.log(Math.max(0.2, Math.min(5, q.weight)))) > 0.3)) {
+  if (!orig.font && (q.fit < 0.65 || Math.abs(Math.log(Math.max(0.2, Math.min(5, q.weight)))) > 0.3)) {
     const fams: string[] = [];
     for (const k of cur.ranking) { const f = lib.entry(k).family; if (f !== cur.family && !fams.includes(f)) fams.push(f); }
-    for (const f of fams.slice(0, 2)) cands.push({ key: `f${f}`, e: { ...cur.e, font: f, weight: undefined } });
+    for (const f of fams.slice(0, 3)) cands.push({ key: `f${f}`, e: { ...cur.e, font: f, weight: undefined } });
   }
   // letters squeezed to fit an old line the typeface doesn't match: set them at their natural width instead
   if (q.squeeze > 0.09) cands.push({ key: 'ns', e: { ...cur.e, noSqueeze: true } });
@@ -1031,7 +1031,7 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
     try {
       let cur = first;
       const tried = new Set<string>();
-      for (let n = 0; n < 4 && retriesLeft > 0 && badness(cur.q) > 0.06; n++) {
+      for (let n = 0; n < 5 && retriesLeft > 0 && badness(cur.q) > 0.06; n++) {
         const alt = nextAlternative(cur, e0, lib, tried, peers, uh);
         if (!alt) break;
         retriesLeft--;

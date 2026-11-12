@@ -666,7 +666,7 @@ export async function runRequest(env: AgentEnv, page: Raster, ocr: OcrLine[], re
     notes.push('Att titta på: Den automatiska kontrollen kunde inte köras den här gången. Titta extra noga på resultatet.');
   }
   for (const r of applied.reports) notes.push(...r.warnings);
-  try { const sc = selfCheck(page, applied, edits); if (sc.length) log(`  självkontroll: ${sc.join(' | ')}`); notes.push(...sc); } catch (err: any) { log(`  självkontroll misslyckades: ${err?.message ?? err}`); }
+  try { const sc = selfCheck(page, applied, edits, ocr); if (sc.length) log(`  självkontroll: ${sc.join(' | ')}`); notes.push(...sc); } catch (err: any) { log(`  självkontroll misslyckades: ${err?.message ?? err}`); }
   usage.ms = Date.now() - t0;
   return { applied, edits, summary: asText(plan.summary), usage, notes };
 }
