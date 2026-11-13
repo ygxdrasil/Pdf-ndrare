@@ -719,7 +719,20 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
     const align = e.align ?? detectAlign(infos, ocr, ocrLines[0]);
     if (meta) (meta as any).align = align;
     const baselines = m.lines.map((l) => l.baseline).sort((a, b) => a - b);
-    const pitch = baselines.length > 1 ? median(baselines.slice(1).map((b, k) => b - baselines[k])) : size0 * 1.25;
+    // line pitch: measured between the block's own lines; a single line looks at its neighbours (a list item, a paragraph line above or below)
+    const neighbourPitch = (): number | null => {
+      const b0 = infos[0].box, hh = Math.max(1, b0.y1 - b0.y0);
+      let best: number | null = null;
+      for (const o of ocr) {
+        if (ocrLines.includes(o) || !o.text.trim()) continue;
+        const oh = o.box.y1 - o.box.y0;
+        if (oh < hh * 0.7 || oh > hh * 1.4 || Math.abs(o.box.x0 - b0.x0) > Math.max(6, size0 * 0.8)) continue;
+        const d = Math.abs(o.box.y1 - b0.y1);
+        if (d > size0 * 0.9 && d < size0 * 3 && (best === null || d < best)) best = d;
+      }
+      return best;
+    };
+    const pitch = baselines.length > 1 ? median(baselines.slice(1).map((b, k) => b - baselines[k])) : (neighbourPitch() ?? size0 * 1.25);
     const blockX0 = Math.min(...infos.map((x) => x.inkBox.x0));
     const blockX1 = Math.max(...infos.map((x) => x.inkBox.x1));
     const explicit = e.new.split('\n');
@@ -990,7 +1003,8 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
     const maxW = e.maxWidth ?? Math.max(blockX1 - blockX0, 1);
     const oldTop = Math.min(...infos.map((x) => x.inkBox.y0));
     const oldBottom = Math.max(...infos.map((x) => x.inkBox.y1));
-    let maxH = e.maxHeight ?? oldBottom - oldTop + (infos.length > 1 ? pitch : size0 * 0.6);
+    const wantLines = e.new.split('\n').length;
+    let maxH = e.maxHeight ?? oldBottom - oldTop + (wantLines > infos.length ? pitch * (wantLines - infos.length) : infos.length > 1 ? pitch : size0 * 0.6);
     // Never let a taller block grow into what lies below it (e.g. a CE mark under an address):
     // look down from the old block for the first row with ink and stop above it.
     {
