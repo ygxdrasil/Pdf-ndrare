@@ -40,6 +40,8 @@ export interface TextEdit {
   sizeScale?: number;
   /** internal: skip the replace-only-the-changed-words mode (set when a retry should redo the whole line) */
   noWords?: boolean;
+  /** internal: `weight` was set by a retry, not asked for by the plan */
+  weightFromRetry?: boolean;
   /** internal: letters at their natural width and spacing (a retry when the fit had to squeeze them) */
   noSqueeze?: boolean;
   /** internal: size (px) taken from a similar, well-fitted line elsewhere on the page (a retry when this line's own fit was disturbed by other ink) */
@@ -81,8 +83,10 @@ function alignFromNeighbours(box: Box, ocr: OcrLine[], self?: OcrLine): 'left' |
   const stacked = near.filter((o) => Math.abs(o.box.y0 - box.y1) < h * 1.6 || Math.abs(box.y0 - o.box.y1) < h * 1.6);
   if (stacked.some((o) => Math.abs(cx(o.box) - cx(box)) < tol && Math.abs(o.box.x0 - box.x0) > tol * 1.5 && Math.abs(o.box.x1 - box.x1) > tol * 1.5)) return 'center';
   // right: at least two other lines in the same column end at the same x (and don't start at the same x)
-  const colR = near.filter((o) => Math.abs(o.box.x1 - box.x1) < tol && Math.abs(o.box.x0 - box.x0) > tol);
-  if (colR.length >= 2) return 'right';
+  // (equal-width neighbours share both edges: one differing left edge among them is enough, as long as the left edge isn't the one the column keeps)
+  const sameR = near.filter((o) => Math.abs(o.box.x1 - box.x1) < tol);
+  const sameL = near.filter((o) => Math.abs(o.box.x0 - box.x0) < tol);
+  if (sameR.length >= 2 && sameR.some((o) => Math.abs(o.box.x0 - box.x0) > tol) && sameL.filter((o) => Math.abs(o.box.x1 - box.x1) > tol).length < 2) return 'right';
   return 'left';
 }
 
@@ -436,7 +440,7 @@ async function overlapRatio(out: Raster, src: Raster, it: { text: string; key: s
 // ---------------------------------------------------------------------------
 // Result checks
 // ---------------------------------------------------------------------------
-export interface Quality { collision: number; weight: number; fit: number; sizeRatio: number; side: number; squeeze: number }
+export interface Quality { collision: number; weight: number; fit: number; sizeRatio: number; side: number; squeeze: number; read?: number }
 
 /** Stroke thickness of a soft ink mask: 2 x area / perimeter (the perimeter is the total variation, so blur doesn't change it). */
 function strokeThickness(cov: ArrayLike<number>, W: number, H: number): number {
@@ -456,7 +460,7 @@ function strokeThickness(cov: ArrayLike<number>, W: number, H: number): number {
  *  fit       - how well the chosen typeface matched the old line (0..1)
  *  side      - where a collision is (-1 left .. 1 right), to pick a better alignment
  */
-async function measureQuality(src: Raster, pre: Raster, reg: Box, fresh: TextItem[], infos: LineInfo[], m: MatchResult, lib: FontLib, moved: { info: LineInfo; dx: number }[] = []): Promise<Quality> {
+async function measureQuality(src: Raster, pre: Raster, reg: Box, fresh: TextItem[], infos: LineInfo[], m: MatchResult, lib: FontLib, moved: { info: LineInfo; dx: number }[] = [], midRef?: LineInfo): Promise<Quality> {
   const ref = infos[0];
   const T = Math.max(60, ref.thresh * 1.5);
   const A = ref.area;
@@ -503,7 +507,8 @@ async function measureQuality(src: Raster, pre: Raster, reg: Box, fresh: TextIte
   const cxNew = (minX + maxX) / 2;
   const side = hit ? Math.max(-1, Math.min(1, (sx / hit - cxNew) / Math.max(1, (maxX - minX) / 2))) : 0;
   // old line's stroke thickness
-  const oldCov = ref.cov, ow = A.x1 - A.x0, oh = A.y1 - A.y0;
+  const wRef = midRef ?? ref;
+  const oldCov = wRef.cov, ow = wRef.area.x1 - wRef.area.x0, oh = wRef.area.y1 - wRef.area.y0;
   const tOld = strokeThickness(oldCov, ow, oh);
   // thickness relative to the type size (letter shapes - capitals, digits - change ink height, not weight)
   const sizeNew = fresh.length ? fresh.reduce((a, f) => a + f.size, 0) / fresh.length : 1, sizeOld = Math.max(1, median(m.lines.map((l) => l.size)));
@@ -525,6 +530,7 @@ function badness(q: Quality): number {
   b += Math.max(0, w - 0.18) * 1.6;
   b += Math.max(0, 0.65 - q.fit) * 1.2;
   b += Math.max(0, q.squeeze - 0.07) * 3;
+  if (q.read !== undefined) b += Math.max(0, 0.8 - q.read) * 4; // what OCR reads back differs from what was meant
   return b;
 }
 
@@ -535,18 +541,20 @@ function describeQuality(q: Quality): string {
   if (q.weight > 1.25) parts.push('texten är fetare än originalet');
   if (q.fit < 0.5) parts.push('typsnittet passar bara ungefär');
   if (q.squeeze > 0.1) parts.push('bokstäverna är hoptryckta eller utdragna');
+  if (q.read !== undefined && q.read < 0.8) parts.push('resultatet läses inte som tänkt vid kontrolläsning');
   return parts.join(', ') || 'osäker';
 }
 
 /** The next way to try an edit, given what was wrong with the last result. */
 interface Peer { family: string; weight: number; size: number; h: number; style?: string }
-function nextAlternative(cur: { e: TextEdit; q: Quality; family: string; weight: number; ranking: string[] }, orig: TextEdit, lib: FontLib, tried: Set<string>, peers: Peer[], h: number): TextEdit | null {
+function nextAlternative(cur: { e: TextEdit; align: 'left' | 'center' | 'right'; q: Quality; family: string; weight: number; ranking: string[] }, orig: TextEdit, lib: FontLib, tried: Set<string>, peers: Peer[], h: number): TextEdit | null {
   const q = cur.q;
   const cands: { key: string; e: TextEdit }[] = [];
   // colliding: smaller, then pushed away from what it hits, then the plain whole-line way
   if (q.collision > 0.004) {
     cands.push({ key: 's.92', e: { ...cur.e, sizeScale: (cur.e.sizeScale ?? 1) * 0.92 } });
-    if (!orig.align || orig.align === 'center') cands.push({ key: `a${q.side > 0 ? 'R' : 'L'}`, e: { ...cur.e, align: q.side > 0 ? 'right' : 'left' } });
+    // (only a centred text may lean to one side: a left- or right-aligned text keeps its edge, or it would grow into the margin)
+    if (cur.align === 'center') cands.push({ key: `a${q.side > 0 ? 'R' : 'L'}`, e: { ...cur.e, align: q.side > 0 ? 'right' : 'left' } });
     cands.push({ key: 'nw', e: { ...cur.e, noWords: true } });
     cands.push({ key: 's.84', e: { ...cur.e, sizeScale: (cur.e.sizeScale ?? 1) * 0.84 } });
   }
@@ -557,8 +565,8 @@ function nextAlternative(cur: { e: TextEdit; q: Quality; family: string; weight:
   }
   const fam = lib.entries.filter((x) => x.family === cur.family).sort((a, b) => a.weight - b.weight);
   // too thin / too heavy: the neighbouring weight of the same typeface
-  if (!orig.weight && q.weight < 0.85) { const h = fam.find((x) => x.weight > cur.weight); if (h) cands.push({ key: `w${h.weight}`, e: { ...cur.e, weight: h.weight } }); }
-  if (!orig.weight && q.weight > 1.2) { const l = [...fam].reverse().find((x) => x.weight < cur.weight); if (l) cands.push({ key: `w${l.weight}`, e: { ...cur.e, weight: l.weight } }); }
+  if (!orig.weight && q.weight < 0.85) { const h = fam.find((x) => x.weight > cur.weight); if (h) cands.push({ key: `w${h.weight}`, e: { ...cur.e, weight: h.weight, weightFromRetry: true } }); }
+  if (!orig.weight && q.weight > 1.2) { const l = [...fam].reverse().find((x) => x.weight < cur.weight); if (l) cands.push({ key: `w${l.weight}`, e: { ...cur.e, weight: l.weight, weightFromRetry: true } }); }
   // poor typeface fit: the next best other families
   if (!orig.font && (q.fit < 0.65 || Math.abs(Math.log(Math.max(0.2, Math.min(5, q.weight)))) > 0.3)) {
     const fams: string[] = [];
@@ -571,7 +579,30 @@ function nextAlternative(cur: { e: TextEdit; q: Quality; family: string; weight:
   return null;
 }
 
-export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib: FontLib, base?: Raster, opts: { vectorOnly?: boolean } = {}): Promise<Applied> {
+export interface ApplyOpts {
+  vectorOnly?: boolean;
+  /** Read the text in an area of a picture (OCR): used to check that a finished edit really reads as intended. */
+  readBack?: (r: Raster, box: Box) => Promise<string>;
+}
+
+/** How much of `want` is found in `got` (0..1): approximate containment by edit distance, ignoring case and spaces. */
+export function containment(want: string, got: string): number {
+  const norm = (t: string) => t.toLowerCase().replace(/[\s\u00a0|]+/g, '');
+  const P = norm(want), T = norm(got);
+  if (!P.length) return 1;
+  if (!T.length) return 0;
+  // semi-global alignment: the pattern may start and end anywhere in the text
+  let prev = new Array(T.length + 1).fill(0), cur = new Array(T.length + 1).fill(0);
+  for (let i = 1; i <= P.length; i++) {
+    cur[0] = i;
+    for (let j = 1; j <= T.length; j++) cur[j] = Math.min(prev[j - 1] + (P[i - 1] === T[j - 1] ? 0 : 1), prev[j] + 1, cur[j - 1] + 1);
+    [prev, cur] = [cur, prev];
+  }
+  let best = Infinity; for (let j = 0; j <= T.length; j++) best = Math.min(best, prev[j]);
+  return Math.max(0, 1 - best / P.length);
+}
+
+export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib: FontLib, base?: Raster, opts: ApplyOpts = {}): Promise<Applied> {
   const out = cloneRaster(base ?? src);
   const items: TextItem[] = [];
   const reports: EditReport[] = [];
@@ -608,7 +639,7 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
       reports.push({ index: i, warnings: [], box: unionBox([L.box, tb]), mode: 'move' });
     });
   };
-  let meta: { infos: LineInfo[]; m: MatchResult } | null = null;
+  let meta: { infos: LineInfo[]; m: MatchResult; align: 'left' | 'center' | 'right' } | null = null;
   let movedRec: { info: LineInfo; dx: number }[] = []; // kept words that were shifted by the current attempt
   const runEdit = async (i: number, e: TextEdit): Promise<void> => {
     let ocrLines: (OcrLine | undefined)[] = e.boxes?.length ? e.boxes.map(() => undefined) : e.lines.map((id) => ocr.find((o) => o.id === id));
@@ -658,7 +689,7 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
     }
     if (e.weight) { const want = lib.find(m.family, e.weight); if (want) m = await matchFont(lib, pairs, { families: [m.family], prefer: want.key, preferTol: 10 }); }
     const font = await lib.load(m.key);
-    meta = { infos, m };
+    meta = { infos, m, align: 'left' } as any;
     const fitOf = (k: number) => m.lines[pairs.findIndex((p) => p.info === infos[k])];
     const ss = e.sizeScale ?? 1;
     if (ss !== 1) for (const l of m.lines) { l.size *= ss; l.tracking *= ss; l.bold *= ss; }
@@ -669,6 +700,7 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
     const bold0 = median(m.lines.map((l) => l.bold ?? 0));
     const color: RGB = [median(infos.map((x) => x.color[0])), median(infos.map((x) => x.color[1])), median(infos.map((x) => x.color[2]))];
     const align = e.align ?? detectAlign(infos, ocr, ocrLines[0]);
+    if (meta) (meta as any).align = align;
     const baselines = m.lines.map((l) => l.baseline).sort((a, b) => a - b);
     const pitch = baselines.length > 1 ? median(baselines.slice(1).map((b, k) => b - baselines[k])) : size0 * 1.25;
     const blockX0 = Math.min(...infos.map((x) => x.inkBox.x0));
@@ -695,12 +727,12 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
         let p = 0; while (p < ow.length && p < nw.length && same(ow[p], nw[p])) p++;
         let s = 0; while (s < ow.length - p && s < nw.length - p && same(ow[ow.length - 1 - s], nw[nw.length - 1 - s])) s++;
         // a requested weight belongs to the whole named thing: words that follow the changed ones are redrawn in that weight too (words before them stay as they were)
-        if (e.weight && p > 0 || (e.weight && p === 0 && s < ow.length)) s = 0;
+        if (e.weight && !e.weightFromRetry && (p > 0 || s < ow.length)) s = 0;
         let wb = (p > 0 || s > 0) ? (wordBoxes(ocrLines[li], oldL) ?? inkWords(info, oldL)) : null;
         // low-resolution working picture (vector page): only a changed word that keeps
         // its neighbours in place can be swapped alone (as vector text); otherwise the line
         if (wb && opts.vectorOnly && p >= ow.length - s) wb = null;
-        if (wb && !e.noWords && (p + s < ow.length || nw.length > ow.length) && (p + s) >= 1) { // a changed word, or words inserted between kept ones
+        if (wb && !e.noWords && !(align === 'center' && Math.abs(nw.join(' ').length - ow.join(' ').length) > 2) && (p + s < ow.length || nw.length > ow.length) && (p + s) >= 1) { // (a centred line that changes length is centred anew as a whole) // a changed word, or words inserted between kept ones
           // ---- word mode: replace only words p..ow.length-s-1 ----
           const midOld = wb.slice(p, ow.length - s);
           const midNew = nw.slice(p, nw.length - s).join(' ');
@@ -711,6 +743,7 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
           const inLine = (bs: Box[]) => { const u = unionBox(bs); return { x0: u.x0, x1: u.x1, y0: Math.max(u.y0, lb.y0 - 1), y1: Math.min(u.y1, lb.y1 + 1) }; };
           // OCR word boxes can overlap: the kept words must not reach into the replaced ones
           const midB = midOld.length ? inLine(midOld) : null;
+          if (meta) (meta as any).midRef = midB ? analyzeLine(src, midB) : undefined; // the old words being replaced: the weight check compares against these, not the whole (maybe mixed) line
           const preB = pre.length ? inLine(pre) : null, sufB = suf.length ? inLine(suf) : null;
           if (midB && preB && preB.x1 > midB.x0 - 1) preB.x1 = Math.max(preB.x0 + 1, midB.x0 - 1);
           if (midB && sufB && sufB.x0 < midB.x1 + 1) sufB.x0 = Math.min(sufB.x1 - 1, midB.x1 + 1);
@@ -753,11 +786,18 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
             const use = loc.family === fm.family ? loc : cur;
             wSize = use.lines[0].size * (e.sizeScale ?? 1); wTr = use.lines[0].tracking * (e.sizeScale ?? 1); wBase = use.lines[0].baseline; wHs = use.lines[0].hs; wBold = use.lines[0].bold * (e.sizeScale ?? 1);
           }
+          // a very short word (little ink to measure) can be misjudged in size: it stays within 15 % of the line's own size
+          if (midTxt.replace(/[^\p{L}\p{N}]/gu, '').length <= 3 && (wSize < size * 0.85 || wSize > size * 1.15)) { wSize = size; wTr = tr; wHs = hs; wBold = bold; wBase = base; }
           // weight: the one whose redrawing of a kept word of this line is as dark as the real one
           const keptIdx = [...Array(p).keys(), ...Array.from({ length: s }, (_, k) => ow.length - s + k)].filter((k) => ow[k].replace(/[^\p{L}\p{N}]/gu, '').length >= 3);
           const kk = nb !== undefined && ow[nb].replace(/[^\p{L}\p{N}]/gu, '').length >= 2 ? nb : keptIdx.sort((a, b) => ow[b].length - ow[a].length)[0];
           let key = fm.key;
-          if (kk !== undefined && !e.weight) ({ key, bold: wBold } = await calibrateWeight(src, lib, fm.family, analyzeLine(src, wb[kk]), ow[kk], wSize, wTr, wBase, drawColor, fm.key, wHs, wBold));
+          // the weight of the words being replaced is the best evidence of the weight the new ones should have
+          // (a price in bold stays bold even if the words around it are regular); kept words are the fallback
+          if (!e.weight) {
+            if (midB && midTxt.replace(/[^\p{L}\p{N}]/gu, '').length >= 2) ({ key, bold: wBold } = await calibrateWeight(src, lib, fm.family, analyzeLine(src, midB), midTxt, wSize, wTr, wBase, drawColor, fm.key, wHs, wBold));
+            else if (kk !== undefined) ({ key, bold: wBold } = await calibrateWeight(src, lib, fm.family, analyzeLine(src, wb[kk]), ow[kk], wSize, wTr, wBase, drawColor, fm.key, wHs, wBold));
+          }
           const kfont = await lib.load(key);
           const wSl = info.slant ?? 0; // italic lines stay italic
           // word gap: as measured between the line's own words, when we can
@@ -782,7 +822,7 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
             // A longer word needs room. Take it from wide word gaps first (justified text),
             // then from free space beside the line, never pushing into other text; only the
             // side(s) the alignment allows move. Not enough room: squeeze the word a little.
-            const free = (x: number, dir: 1 | -1) => freeRun(src, anchor.inkBox, x, dir, Math.round(wSize * 3), info.thresh);
+            const free = (x: number, dir: 1 | -1) => freeRun(src, anchor.inkBox, x, dir, Math.round(wSize * 8), info.thresh);
             const keep = wSize * 0.3;
             // a word gap may close down to about one normal space, never tighter ("10,2cm²" looks glued)
             const slackR = sufInfo ? Math.max(0, sufInfo.inkBox.x0 - oldX1 - space * 0.95) : 0;
@@ -893,7 +933,7 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
         let maxW = e.maxWidth ?? Math.max(info.inkBox.x1 - info.inkBox.x0, (blockX1 - blockX0) * (infos.length > 1 ? 1 : 1.0));
         if (!e.maxWidth && infos.length === 1) {
           // a lone line (a heading, a name) may grow into the free space beside it
-          const free = (x: number, dir: 1 | -1) => freeRun(src, info.inkBox, x, dir, Math.round(size * 4), info.thresh);
+          const free = (x: number, dir: 1 | -1) => freeRun(src, info.inkBox, x, dir, Math.round(size * (align === 'left' ? 4 : 14)), info.thresh); // (a centred or right-aligned heading may grow further than a left-aligned label)
           const keep = size * 0.4;
           const fr = Math.max(0, free(info.inkBox.x1, 1) - keep), fl = Math.max(0, free(info.inkBox.x0, -1) - keep);
           const inkW0 = info.inkBox.x1 - info.inkBox.x0;
@@ -970,6 +1010,19 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
       }
       roomW = Math.max(maxW, clear - size0 * 0.3 - blockX0);
     }
+    // a centred or right-aligned short text may grow too: to the left (right-aligned) or to both sides (centred), up to what is free
+    if (e.maxWidth === undefined && align !== 'left' && (infos.length === 1 || e.new.includes('\n'))) {
+      const bgRef = infos[0], th = Math.max(60, bgRef.thresh * 1.5);
+      const y0 = Math.max(0, Math.floor(oldTop)), y1 = Math.min(src.h, Math.ceil(oldBottom));
+      const inkCol = (x: number) => { let hits = 0; for (let y = y0; y < y1; y++) { const i = (y * src.w + x) * 4, b = bgRef.bgAt(Math.min(Math.max(x, bgRef.area.x0), bgRef.area.x1 - 1), y); if (Math.abs(src.data[i] - b[0]) + Math.abs(src.data[i + 1] - b[1]) + Math.abs(src.data[i + 2] - b[2]) > th) hits++; } return hits > 1; };
+      const edge = Math.round(src.w * 0.04);
+      let clearR = src.w - edge, clearL = edge;
+      for (let x = Math.ceil(blockX1 + size0 * 0.2); x < src.w - edge; x++) if (inkCol(x)) { clearR = x; break; }
+      for (let x = Math.floor(blockX0 - size0 * 0.2); x > edge; x--) if (inkCol(x)) { clearL = x; break; }
+      const cxb = (blockX0 + blockX1) / 2;
+      const grown = align === 'right' ? blockX1 - (clearL + size0 * 0.3) : 2 * Math.min(cxb - (clearL + size0 * 0.3), clearR - size0 * 0.3 - cxb);
+      roomW = Math.max(roomW, grown);
+    }
     const widestOf = (ls: string[], kk: number) => Math.max(...ls.map((t) => { const x = inkExtent(font, t, size0 * kk, track0 * kk, hs0); return x.maxX - x.minX; }));
     // 1st choice: keep Elin's lines as written (no extra line breaks), shrinking a little if needed
     const asWritten = e.new.split('\n');
@@ -1006,16 +1059,16 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
     const reg = clampBox({ x0: ub.x0 - Math.max(80, uw * 1.5), x1: ub.x1 + Math.max(80, uw * 1.5), y0: ub.y0 - Math.max(30, uh * 1.5), y1: ub.y1 + Math.max(30, uh * 1.5) }, out);
     const base0 = cropRaster(out, reg);
     const markItems = items.length, markReports = reports.length;
-    type Attempt = { e: TextEdit; q: Quality; crop: Raster; items: TextItem[]; reports: EditReport[]; family: string; weight: number; ranking: string[] };
+    type Attempt = { e: TextEdit; align: 'left' | 'center' | 'right'; q: Quality; crop: Raster; items: TextItem[]; reports: EditReport[]; family: string; weight: number; ranking: string[] };
     const done: Attempt[] = [];
     const attempt = async (e: TextEdit): Promise<Attempt | null> => {
       pasteRaster(out, base0, reg.x0, reg.y0); items.length = markItems; reports.length = markReports; meta = null; movedRec = [];
       await runEdit(i, e);
-      const mt = meta as { infos: LineInfo[]; m: MatchResult } | null;
+      const mt = meta as { infos: LineInfo[]; m: MatchResult; align: 'left' | 'center' | 'right' } | null;
       if (!mt) return null;
       const fresh = items.slice(markItems);
       const pre = cropRaster(out, reg); // the picture with old text gone, kept words in place, new words not yet drawn
-      const q = await measureQuality(src, pre, reg, fresh, mt.infos, mt.m, lib, movedRec);
+      const q = await measureQuality(src, pre, reg, fresh, mt.infos, mt.m, lib, movedRec, (mt as any).midRef);
       if (e.noSqueeze) q.squeeze = 0;
       if (e.forceSize) { q.fit = 0.8; q.sizeRatio = 1; q.weight = 1; q.squeeze = 0; } // borrowed from a trusted line: this line's own (disturbed) ink is no reference
       if (e0.weight) q.weight = 1; // a weight was asked for: it is not a flaw that it differs from the old line
@@ -1023,8 +1076,18 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
       const kept: TextItem[] = [];
       for (const it of fresh) { if (it.raster) await rasterizeInto(out, it, lib, (it as any).ref); else kept.push(it); }
       items.length = markItems; items.push(...kept);
+      if (opts.readBack && !e.new.includes('\n') ) {
+        try {
+          // read the finished area back (vector words are drawn into a copy first) and compare with what was meant
+          const view = cropRaster(out, reg);
+          for (const it of kept) await rasterizeInto(view, { ...it, x: it.x - reg.x0, baseline: it.baseline - reg.y0 }, lib);
+          const got = await opts.readBack(view, { x0: 0, y0: 0, x1: view.w, y1: view.h });
+          q.read = containment(e.new, got);
+          if (process.env.DBGQ) console.error('DBGREAD', JSON.stringify(e.new), '->', JSON.stringify(got), q.read.toFixed(2));
+        } catch { /* no read-back available: the other checks stand */ }
+      }
       if (typeof process !== 'undefined' && process.env?.DBGQ) console.error('DBGQ', i, JSON.stringify({ font: e.font, weight: e.weight, ss: e.sizeScale, nw: e.noWords, ns: e.noSqueeze, align: e.align }), mt.m.family, mt.m.weight, JSON.stringify({ ...q, bad: +badness(q).toFixed(2) }));
-      return { e, q, crop: cropRaster(out, reg), items: items.slice(markItems), reports: reports.slice(markReports), family: mt.m.family, weight: mt.m.weight, ranking: mt.m.ranking.map((r) => r.key) };
+      return { e, q, crop: cropRaster(out, reg), items: items.slice(markItems), reports: reports.slice(markReports), family: mt.m.family, weight: mt.m.weight, align: mt.align, ranking: mt.m.ranking.map((r) => r.key) };
     };
     let first: Attempt | null = null;
     try { first = await attempt(e0); } catch (err) { throw err; }

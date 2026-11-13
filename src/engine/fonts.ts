@@ -10,7 +10,7 @@ export interface FontEntry {
   key: string;
   family: string;
   weight: number;
-  style: 'sans' | 'serif' | 'script';
+  style: 'sans' | 'serif' | 'script' | 'mono';
   file: string;
 }
 

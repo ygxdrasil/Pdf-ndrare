@@ -6,7 +6,7 @@
 //    edited by the ordinary engine, turned back and pasted in again.
 
 import { Box, Raster, cloneRaster, cropRaster, pasteRaster, rotateCCW, rotateCW, shrinkRaster, unionBox, clampBox, padBox } from './raster';
-import { applyEdits, Applied, Edit, EditReport, OcrLine, TextEdit } from './edit';
+import { applyEdits, ApplyOpts, Applied, Edit, EditReport, OcrLine, TextEdit } from './edit';
 import { drawText, FontLib } from './fonts';
 
 type PassFn = (r: Raster, region: Box, invert: boolean, minConf?: number) => Promise<OcrLine[]>;
@@ -36,7 +36,7 @@ export async function ocrRotated(page: Raster, pass: PassFn): Promise<OcrLine[]>
   const out: OcrLine[] = [];
   for (const cw of [true, false]) {
     const rr = cw ? rotateCW(r) : rotateCCW(r);
-    const lines = await pass(rr, { x0: 0, y0: 0, x1: rr.w, y1: rr.h }, false, 70);
+    const lines = await pass(rr, { x0: 0, y0: 0, x1: rr.w, y1: rr.h }, false, +(process.env.ROTCONF ?? 50));
     const up = (b: Box): Box => { const t = backBox(b, r, cw); return { x0: t.x0 * f, y0: t.y0 * f, x1: t.x1 * f, y1: t.y1 * f }; };
     for (const l of lines) {
       const alnum = (l.text.match(/[\p{L}\p{N}]/gu) ?? []).length;
@@ -74,7 +74,7 @@ async function flatten(lib: FontLib, a: Applied): Promise<Raster> {
  * Like applyEdits, but text edits whose lines run vertically are done on a turned cut-out.
  * Everything else goes through applyEdits as before.
  */
-export async function applyEditsRot(src: Raster, ocr: OcrLine[], edits: Edit[], lib: FontLib, base?: Raster, opts: { vectorOnly?: boolean } = {}): Promise<Applied> {
+export async function applyEditsRot(src: Raster, ocr: OcrLine[], edits: Edit[], lib: FontLib, base?: Raster, opts: ApplyOpts = {}): Promise<Applied> {
   const rotOf = (e: Edit): 90 | -90 | undefined => {
     if (e.kind !== 'text' || !e.lines.length || e.boxes?.length) return undefined;
     const rs = e.lines.map((id) => ocr.find((o) => o.id === id)?.rot);

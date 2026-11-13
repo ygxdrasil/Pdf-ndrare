@@ -181,6 +181,22 @@ export function analyzeLine(r: Raster, ocrBox: Box): LineInfo {
       const i = (y - area.y0) * ink.w + (x - area.x0);
       if (d[i] > thresh) { ink.m[i] = 1; strong.push(d[i]); }
     }
+  // Two layers of ink (dark lettering over a light watermark or tint that is itself clearly darker than the paper):
+  // the strength of the ink then has two separate humps with a gap between them. Only the strong layer is lettering.
+  if (strong.length > 80) {
+    const mx = Math.max(...strong), B = 24, hist = new Array(B).fill(0);
+    for (const v of strong) hist[Math.min(B - 1, Math.floor((v / mx) * B))]++;
+    const sm = hist.map((_, i) => (hist[Math.max(0, i - 1)] + hist[i] * 2 + hist[Math.min(B - 1, i + 1)]) / 4);
+    // the strong hump: the highest-ink bins; the weak hump: the biggest bin below half of that
+    let hi = B - 1; while (hi > 0 && sm[hi] < strong.length * 0.01) hi--;
+    let lo = 0, loV = -1; for (let i = 0; i < Math.floor(B * 0.55); i++) if (sm[i] > loV) { loV = sm[i]; lo = i; }
+    let valley = Infinity, vi = lo; for (let i = lo + 1; i < hi; i++) if (sm[i] < valley) { valley = sm[i]; vi = i; }
+    let hiV = 0; for (let i = Math.max(lo + 3, Math.floor(B * 0.6)); i <= hi; i++) hiV = Math.max(hiV, sm[i]);
+    if (hi - lo >= 8 && loV > strong.length * 0.25 && hiV > strong.length * 0.04 && valley < Math.min(loV, hiV) * 0.25) {
+      const cut2 = ((vi + 1) / B) * mx;
+      for (let y = inner.y0; y < inner.y1; y++) for (let x = inner.x0; x < inner.x1; x++) { const i = (y - area.y0) * ink.w + (x - area.x0); if (ink.m[i] && d[i] < cut2) { ink.m[i] = 0; d[i] = 0; } }
+    }
+  }
   const dRaw = new Float32Array(d);
   // Drop ink that belongs to neighbouring lines: keep a connected piece only
   // if most of it lies inside the OCR box.

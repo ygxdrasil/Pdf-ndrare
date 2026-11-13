@@ -7,7 +7,7 @@ import { applyEditsRot } from '../src/engine/rotate';
 import { renderPreview } from '../src/engine/agent';
 import { selfCheck } from '../src/engine/selfcheck';
 import { codec, makeLib } from './node-platform';
-import { ocrRaster, closeOcr } from './ocr-node';
+import { ocrRaster, ocrRegion, closeOcr } from './ocr-node';
 const [f, out, spec] = process.argv.slice(2);
 const bytes = new Uint8Array(await readFile(f));
 const isPdf = /\.pdf$/i.test(f);
@@ -58,7 +58,7 @@ for (const e of JSON.parse(spec)) {
 }
 const vectorOnly = image.mode === 'render' && (image.ppi ?? 300) < 200;
 console.log('mode', image.mode, 'ppi', image.ppi, 'vectorOnly', vectorOnly);
-const res = await applyEditsRot(raster, OCR, edits, lib, undefined, { vectorOnly });
+const res = await applyEditsRot(raster, OCR, edits, lib, undefined, { vectorOnly, readBack: process.env.NOREAD ? undefined : async (r: any, b: any) => (await ocrRegion(r, b)).map((l: any) => l.text).join(' ') });
 if (process.env.STRAY) for (let y = 40; y < 90; y++) for (let x = 40; x < 90; x++) { const i = (y * res.raster.w + x) * 4; res.raster.data[i] = 255; res.raster.data[i + 1] = 255; res.raster.data[i + 2] = 255; } // test: damage outside every edit
 console.log('SELFCHECK', JSON.stringify(selfCheck(raster, res, edits, OCR)));
 for (const r of res.reports) console.log(r.index, r.mode, r.font, JSON.stringify((edits[r.index] as any).new), r.warnings.join(' '));
@@ -68,3 +68,4 @@ const outBytes = isPdf
   ? await writePdf(bytes, image, res.raster, res.items, lib, codec, raster)
   : await writeImage(image, res.raster, res.items, lib, codec, (a) => renderPreview({ lib }, a as any, image.w, image.h));
 await writeFile(out, outBytes);
+await closeOcr();

@@ -104,6 +104,7 @@ export default function App() {
         claude: callClaude,
         encode: encodeForClaude,
         ocrRegion: (b) => ocrRegion(v.preview, b),
+        readBack: async (r, b) => (await ocrRegion(r, b)).map((l) => l.text).join(' '),
         log: (s) => { if (!s.startsWith('  ')) setBusy(s); },
       }, v.preview, ocr, { instruction: text, mark: mark ?? undefined, history }, v.clean, v.items);
       if (res.question) {

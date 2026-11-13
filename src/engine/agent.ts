@@ -39,6 +39,8 @@ export interface AgentEnv {
   save?: (name: string, r: Raster) => Promise<void>;
   /** Re-read a small area of the page (used when Claude points at text by box). */
   ocrRegion?: (box: Box) => Promise<OcrLine[]>;
+  /** Read the text in an area of any picture (OCR), to check finished edits. */
+  readBack?: (r: Raster, box: Box) => Promise<string>;
   /** Send few, combined pictures (collages) instead of many separate ones. */
   compact?: boolean;
   /** low-resolution working picture of a vector page: draw all new text as sharp vector text */
@@ -601,7 +603,7 @@ export async function runRequest(env: AgentEnv, page: Raster, ocr: OcrLine[], re
     }
     if (bake.length) { base = await renderPreview(env, { raster: base, items: bake } as any, base.w, base.h); prior = keep; }
   }
-  let applied = await mergePrior(env, prior, await applyEditsRot(page, ocr, edits, env.lib, base, { vectorOnly: env.vectorOnly }));
+  let applied = await mergePrior(env, prior, await applyEditsRot(page, ocr, edits, env.lib, base, { vectorOnly: env.vectorOnly, readBack: env.readBack }));
   const firstApplied = applied;
 
   // ---------- 4. check once, fix once ----------
@@ -652,7 +654,7 @@ export async function runRequest(env: AgentEnv, page: Raster, ocr: OcrLine[], re
         if (f.size) (e as any).sizeScale = ((e as any).sizeScale ?? 1) * (f.size === 'smaller' ? 0.93 : 1.07);
         if (f.addLines?.length) for (const id of f.addLines) if (!e.lines.includes(id)) { e.lines.push(id); e.old.push(ocr.find((o) => o.id === id)?.text ?? ''); }
       }
-      applied = await mergePrior(env, prior, await applyEditsRot(page, ocr, edits, env.lib, base, { vectorOnly: env.vectorOnly }));
+      applied = await mergePrior(env, prior, await applyEditsRot(page, ocr, edits, env.lib, base, { vectorOnly: env.vectorOnly, readBack: env.readBack }));
       const n = fixes.filter((f: any) => edits[f.edit]?.kind === 'text').length;
       // look once more: only claim it's fixed when it really is, otherwise tell Elin what to check
       log('AI kontrollerar rättelsen …');

@@ -170,7 +170,7 @@ export async function matchFont(
     const fams = opts.families.map((f) => f.toLowerCase());
     const sub = cands.filter((e) => fams.includes(e.family.toLowerCase()));
     if (sub.length) cands = sub;
-  } else if (opts.style && opts.style !== 'any') cands = cands.filter((e) => e.style === opts.style);
+  } else if (opts.style && opts.style !== 'any') cands = cands.filter((e) => e.style === opts.style || (e.style === 'mono' && opts.style !== 'script')); // (a fixed-width face competes with any text style: the fit decides)
   const allText = lines.map((l) => l.text).join(' ');
   const cache = new Map<string, any>();
   const results: { key: string; score: number; fits: LineFit[] }[] = [];

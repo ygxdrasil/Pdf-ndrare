@@ -1780,5 +1780,21 @@
   "style": "sans",
   "file": "HerosPA-Bold.ttf",
   "licence": "licenses/gust-font-license.txt"
+ },
+ {
+  "key": "m:courierprime-400",
+  "family": "Courier Prime",
+  "weight": 400,
+  "style": "mono",
+  "file": "CourierPrime-400.ttf",
+  "licence": "licenses/courier-prime.txt"
+ },
+ {
+  "key": "m:courierprime-700",
+  "family": "Courier Prime",
+  "weight": 700,
+  "style": "mono",
+  "file": "CourierPrime-700.ttf",
+  "licence": "licenses/courier-prime.txt"
  }
 ]
