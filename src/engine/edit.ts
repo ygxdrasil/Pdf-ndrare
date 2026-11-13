@@ -662,6 +662,11 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
     const boxes = e.boxes?.length ? e.boxes : ocrLines.map((l) => { if (!l) throw new Error('Okänd rad.'); return l.box; });
     const infos = boxes.map((b) => analyzeLine(src, b));
     if (!infos.length) return; // nothing on the page to work on
+    // a box far taller than wide around several letters: the text is turned (vertical or slanted) and would be set as huge horizontal letters
+    if (e.boxes?.length && infos.some((x, k) => (x.box.y1 - x.box.y0) > (x.box.x1 - x.box.x0) * 1.5 && ((e.old[k] ?? e.new) || '').replace(/\s/g, '').length >= 4)) {
+      reports.push({ index: i, font: '-', sizePx: 0, shrunk: 1, lines: infos.length, mode: 'skipped', warnings: ['Ändringen gjordes inte: rutan är mycket högre än bred, så texten verkar vara lodrät eller snett vriden. Motorn kan bara skriva om sådan text när OCR hittar den som en rad.'], box: boxes[0] });
+      return;
+    }
     let touched = unionBox(infos.map((x) => x.area));
     const grow = (x0: number, x1: number) => { touched = { ...touched, x0: Math.min(touched.x0, x0), x1: Math.max(touched.x1, x1) }; }; // new text may reach beyond the old areas
     const warnings: string[] = [];
@@ -1095,10 +1100,15 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
         readsLeft--;
         try {
           // read the finished area back (vector words are drawn into a copy first) and compare with what was meant
-          const view = cropRaster(out, reg);
-          for (const it of kept) await rasterizeInto(view, { ...it, x: it.x - reg.x0, baseline: it.baseline - reg.y0 }, lib);
-          // OCR reads best when the letters are about 25 px tall (it is run at 2x): scale the crop to that
-          const f = Math.max(0.1, Math.min(3, 25 / Math.max(6, uh / Math.max(1, e0.lines.length || 1))));
+          const rep0 = reports[reports.length - 1];
+          const lh = Math.max(6, uh / Math.max(1, e0.lines.length || lineBoxes.length || 1));
+          const rb = clampBox(padBox(rep0?.box ?? reg, Math.max(8, lh * 0.3)), out);
+          const view = cropRaster(out, rb);
+          for (const it of kept) await rasterizeInto(view, { ...it, x: it.x - rb.x0, baseline: it.baseline - rb.y0 }, lib);
+          // OCR reads best with dark letters on a light ground, about 30 px tall (it is run at 2x)
+          let lum = 0, n = 0; for (let k = 0; k < view.data.length; k += 64) { lum += view.data[k] * 0.3 + view.data[k + 1] * 0.59 + view.data[k + 2] * 0.11; n++; }
+          if (n && lum / n < 110) for (let k = 0; k < view.data.length; k += 4) { view.data[k] = 255 - view.data[k]; view.data[k + 1] = 255 - view.data[k + 1]; view.data[k + 2] = 255 - view.data[k + 2]; }
+          const f = Math.max(0.25, Math.min(3, 30 / lh));
           const sv = Math.abs(f - 1) > 0.08 ? await scaleRaster(lib, view, f) : view;
           const got = await opts.readBack(sv, { x0: 0, y0: 0, x1: sv.w, y1: sv.h });
           q.read = containment(e.new, got);
@@ -1204,8 +1214,11 @@ export async function glyphCoverage(it: TextItem, lib: FontLib): Promise<{ x0: n
   const pad = Math.ceil(4 + (it.bold ?? 0));
   const x0 = Math.floor(it.x + ext.minX) - pad, x1 = Math.ceil(it.x + ext.maxX) + pad;
   const y0 = Math.floor(it.baseline - it.size * 1.05) - pad, y1 = Math.ceil(it.baseline + it.size * 0.35) + pad;
-  const W = x1 - x0, H = y1 - y0, S = 4;
+  const W = x1 - x0, H = y1 - y0;
   if (W <= 0 || H <= 0) return null;
+  // enlarged 4x for smooth edges, but never into a picture that would eat the memory (a huge size from a mistaken box)
+  let S = 4; while (S > 1 && W * S * H * S > 2.5e7) S--;
+  if (W * H > 6e7) return null;
   const big = lib.platform.createCanvas(W * S, H * S);
   const g = big.getContext('2d');
   drawText(g, font, it.text, (it.x - x0) * S, (it.baseline - y0) * S, it.size * S, it.tracking * S, '#000', it.hs ?? 1, (it.bold ?? 0) * S, it.slant ?? 0);

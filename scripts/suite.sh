@@ -17,7 +17,7 @@ clean=0; total=0; retried=0
 for n in "${names[@]}"; do
   [ -f "$W/res/$n.log" ] || continue
   total=$((total+1))
-  bad=$(grep -c "Att titta på\|inte nöjd\|Error\|TypeError" "$W/res/$n.log")
+  bad=$(grep -c "Att titta på\|inte nöjd\|Error\|TypeError\|gjordes inte" "$W/res/$n.log")
   r=$(grep -c "kontrollerades" "$W/res/$n.log")
   [ "$r" -gt 0 ] && retried=$((retried+1))
   if [ "$bad" -eq 0 ]; then clean=$((clean+1)); echo "OK     $n (omgjorda: $r)"; else echo "FEL    $n ($bad anmärkningar, omgjorda: $r)"; fi

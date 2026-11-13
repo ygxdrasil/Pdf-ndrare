@@ -1796,5 +1796,37 @@
   "style": "mono",
   "file": "CourierPrime-700.ttf",
   "licence": "licenses/courier-prime.txt"
+ },
+ {
+  "key": "m:caladea-400",
+  "family": "Caladea",
+  "weight": 400,
+  "style": "serif",
+  "file": "Caladea-400.ttf",
+  "licence": "licenses/caladea.txt"
+ },
+ {
+  "key": "m:caladea-700",
+  "family": "Caladea",
+  "weight": 700,
+  "style": "serif",
+  "file": "Caladea-700.ttf",
+  "licence": "licenses/caladea.txt"
+ },
+ {
+  "key": "m:dejavusans-400",
+  "family": "DejaVu Sans",
+  "weight": 400,
+  "style": "sans",
+  "file": "DejaVuSans-400.ttf",
+  "licence": "licenses/dejavu.txt"
+ },
+ {
+  "key": "m:dejavusans-700",
+  "family": "DejaVu Sans",
+  "weight": 700,
+  "style": "sans",
+  "file": "DejaVuSans-700.ttf",
+  "licence": "licenses/dejavu.txt"
  }
 ]
