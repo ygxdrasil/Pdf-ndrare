@@ -100,6 +100,18 @@ function detectAlign(infos: LineInfo[], ocr: OcrLine[] = [], self?: OcrLine): 'l
   return m === c && c < l - 2 ? 'center' : m === r && r < l - 2 ? 'right' : 'left';
 }
 
+/** Resample a picture by a factor (smooth). */
+async function scaleRaster(lib: FontLib, r: Raster, f: number): Promise<Raster> {
+  const w = Math.max(1, Math.round(r.w * f)), h = Math.max(1, Math.round(r.h * f));
+  const a = lib.platform.createCanvas(r.w, r.h), g = a.getContext('2d');
+  const id = g.createImageData(r.w, r.h); id.data.set(r.data); g.putImageData(id, 0, 0);
+  const b = lib.platform.createCanvas(w, h), g2 = b.getContext('2d');
+  (g2 as any).imageSmoothingQuality = 'high';
+  g2.drawImage(a as any, 0, 0, w, h);
+  const d = g2.getImageData(0, 0, w, h);
+  return { w, h, data: new Uint8ClampedArray(d.data) };
+}
+
 export function inkExtent(font: any, text: string, size: number, tracking: number, hs = 1, slant = 0) {
   const run = font.layout(text, FEATURES);
   const s = (size / font.unitsPerEm) * hs;
@@ -1081,7 +1093,10 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
           // read the finished area back (vector words are drawn into a copy first) and compare with what was meant
           const view = cropRaster(out, reg);
           for (const it of kept) await rasterizeInto(view, { ...it, x: it.x - reg.x0, baseline: it.baseline - reg.y0 }, lib);
-          const got = await opts.readBack(view, { x0: 0, y0: 0, x1: view.w, y1: view.h });
+          // OCR reads best when the letters are about 25 px tall (it is run at 2x): scale the crop to that
+          const f = Math.max(0.1, Math.min(3, 25 / Math.max(6, uh / Math.max(1, e0.lines.length || 1))));
+          const sv = Math.abs(f - 1) > 0.08 ? await scaleRaster(lib, view, f) : view;
+          const got = await opts.readBack(sv, { x0: 0, y0: 0, x1: sv.w, y1: sv.h });
           q.read = containment(e.new, got);
           if (process.env.DBGQ) console.error('DBGREAD', JSON.stringify(e.new), '->', JSON.stringify(got), q.read.toFixed(2));
         } catch { /* no read-back available: the other checks stand */ }

@@ -328,3 +328,10 @@ async function tilePasses(r: Raster, onStep?: (s: string) => void): Promise<OcrL
 export async function ocrRegion(r: Raster, box: Box): Promise<OcrLine[]> {
   return mergeOcr(await pass(r, box, false), await pass(r, box, true));
 }
+
+/** The text found in an area, with no confidence filter (used to read a finished edit back and compare it with what was meant). */
+export async function readText(r: Raster, box: Box): Promise<string> {
+  const wk = await getWorker();
+  await wk.setParameters({ tessedit_pageseg_mode: '6' as any }); // block mode: reads big headings and tidy lines that sparse mode misses
+  try { return (await pass(r, box, false, 0)).map((l) => l.text).join(' '); } finally { await wk.setParameters({ tessedit_pageseg_mode: '11' as any }); }
+}

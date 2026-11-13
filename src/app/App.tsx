@@ -4,7 +4,7 @@ import { runRequest, renderPreview } from '../engine/agent';
 import type { OcrLine } from '../engine/edit';
 import type { Box, Raster } from '../engine/raster';
 import type { FontLib } from '../engine/fonts';
-import { callClaude, codec, encodeForClaude, inArtifact, initArtifactRuntime, makeLib, ocrPage, ocrRegion, rasterToCanvas, saveFile } from './browser';
+import { callClaude, codec, encodeForClaude, inArtifact, initArtifactRuntime, makeLib, ocrPage, ocrRegion, readText, rasterToCanvas, saveFile } from './browser';
 
 type ModelKey = 'opus' | 'sonnet';
 const MODELS: Record<ModelKey, { id: string; name: string; hint: string }> = {
@@ -104,7 +104,7 @@ export default function App() {
         claude: callClaude,
         encode: encodeForClaude,
         ocrRegion: (b) => ocrRegion(v.preview, b),
-        readBack: async (r, b) => (await ocrRegion(r, b)).map((l) => l.text).join(' '),
+        readBack: readText,
         log: (s) => { if (!s.startsWith('  ')) setBusy(s); },
       }, v.preview, ocr, { instruction: text, mark: mark ?? undefined, history }, v.clean, v.items);
       if (res.question) {
