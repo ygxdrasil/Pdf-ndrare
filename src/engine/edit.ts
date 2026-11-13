@@ -1126,7 +1126,7 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
           const sv = Math.abs(f - 1) > 0.08 ? await scaleRaster(lib, view, f) : view;
           const got = await opts.readBack(sv, { x0: 0, y0: 0, x1: sv.w, y1: sv.h });
           q.read = containment(e.new, got);
-          if (process.env.DBGQ) console.error('DBGREAD', JSON.stringify(e.new), '->', JSON.stringify(got), q.read.toFixed(2));
+          if (typeof process !== 'undefined' && process.env?.DBGQ) console.error('DBGREAD', JSON.stringify(e.new), '->', JSON.stringify(got), q.read.toFixed(2));
         } catch { /* no read-back available: the other checks stand */ }
       }
       if (typeof process !== 'undefined' && process.env?.DBGQ) console.error('DBGQ', i, JSON.stringify({ font: e.font, weight: e.weight, ss: e.sizeScale, nw: e.noWords, ns: e.noSqueeze, align: e.align }), mt.m.family, mt.m.weight, JSON.stringify({ ...q, bad: +badness(q).toFixed(2) }));

@@ -36,7 +36,7 @@ export async function ocrRotated(page: Raster, pass: PassFn): Promise<OcrLine[]>
   const out: OcrLine[] = [];
   for (const cw of [true, false]) {
     const rr = cw ? rotateCW(r) : rotateCCW(r);
-    const lines = await pass(rr, { x0: 0, y0: 0, x1: rr.w, y1: rr.h }, false, +(process.env.ROTCONF ?? 50));
+    const lines = await pass(rr, { x0: 0, y0: 0, x1: rr.w, y1: rr.h }, false, (typeof process !== 'undefined' && process.env?.ROTCONF ? +process.env.ROTCONF : 50));
     const up = (b: Box): Box => { const t = backBox(b, r, cw); return { x0: t.x0 * f, y0: t.y0 * f, x1: t.x1 * f, y1: t.y1 * f }; };
     for (const l of lines) {
       const alnum = (l.text.match(/[\p{L}\p{N}]/gu) ?? []).length;
