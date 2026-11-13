@@ -101,7 +101,7 @@ function detectAlign(infos: LineInfo[], ocr: OcrLine[] = [], self?: OcrLine): 'l
 }
 
 /** Resample a picture by a factor (smooth). */
-async function scaleRaster(lib: FontLib, r: Raster, f: number): Promise<Raster> {
+export async function scaleRaster(lib: FontLib, r: Raster, f: number): Promise<Raster> {
   const w = Math.max(1, Math.round(r.w * f)), h = Math.max(1, Math.round(r.h * f));
   const a = lib.platform.createCanvas(r.w, r.h), g = a.getContext('2d');
   const id = g.createImageData(r.w, r.h); id.data.set(r.data); g.putImageData(id, 0, 0);
