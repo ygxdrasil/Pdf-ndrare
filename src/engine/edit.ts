@@ -525,8 +525,8 @@ async function measureQuality(src: Raster, pre: Raster, reg: Box, fresh: TextIte
   // thickness relative to the type size (letter shapes - capitals, digits - change ink height, not weight)
   const sizeNew = fresh.length ? fresh.reduce((a, f) => a + f.size, 0) / fresh.length : 1, sizeOld = Math.max(1, median(m.lines.map((l) => l.size)));
   const weight = thickW > 0 && tOld > 0 ? (thickN / thickW / Math.max(1, sizeNew)) / (tOld / sizeOld) : 1;
-  // size: height of the new ink against the old ink (only meaningful when both are one line)
-  const hOld = Math.max(1, ref.inkBox.y1 - ref.inkBox.y0), hNew = maxY > minY ? maxY - minY : hOld;
+  // size: the size the new letters were set at against the size of the old line (a text squeezed down to fit is far smaller)
+  const hNew = sizeNew, hOld = sizeOld;
   // letters squeezed or stretched (or spaced very tight/loose) to fit an old line that the typeface doesn't really match
   const hs = median(m.lines.map((l) => l.hs ?? 1)), trk = median(m.lines.map((l) => Math.abs(l.tracking) / Math.max(1, l.size)));
   const squeeze = Math.max(Math.abs(Math.log(hs)), trk * 3);
