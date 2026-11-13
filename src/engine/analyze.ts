@@ -184,7 +184,8 @@ export function analyzeLine(r: Raster, ocrBox: Box): LineInfo {
   // Two layers of ink (dark lettering over a light watermark or tint that is itself clearly darker than the paper):
   // the strength of the ink then has two separate humps with a gap between them. Only the strong layer is lettering.
   if (strong.length > 80) {
-    const mx = Math.max(...strong), B = 24, hist = new Array(B).fill(0);
+    let mx = 0; for (const v of strong) if (v > mx) mx = v; // (no spread: a big headline has millions of ink pixels)
+    const B = 24, hist = new Array(B).fill(0);
     for (const v of strong) hist[Math.min(B - 1, Math.floor((v / mx) * B))]++;
     const sm = hist.map((_, i) => (hist[Math.max(0, i - 1)] + hist[i] * 2 + hist[Math.min(B - 1, i + 1)]) / 4);
     // the strong hump: the highest-ink bins; the weak hump: the biggest bin below half of that

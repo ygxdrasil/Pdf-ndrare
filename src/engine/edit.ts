@@ -1090,7 +1090,8 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
       const kept: TextItem[] = [];
       for (const it of fresh) { if (it.raster) await rasterizeInto(out, it, lib, (it as any).ref); else kept.push(it); }
       items.length = markItems; items.push(...kept);
-      if (opts.readBack && readsLeft > 0 && !e.new.includes('\n')) {
+      // (a text shorter than 5 letters or digits is too little for OCR to judge: lone digits and units are misread often)
+      if (opts.readBack && readsLeft > 0 && !e.new.includes('\n') && (e.new.match(/[\p{L}\p{N}]/gu) ?? []).length >= 5) {
         readsLeft--;
         try {
           // read the finished area back (vector words are drawn into a copy first) and compare with what was meant

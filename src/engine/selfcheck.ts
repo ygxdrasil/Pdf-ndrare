@@ -46,7 +46,8 @@ export function selfCheck(orig: Raster, applied: Applied, edits: Edit[], ocr: Oc
     const e = edits[r.index];
     if (!e || e.kind !== 'text' || !r.match || /^same/.test(r.mode ?? '')) continue;
     const snippet = e.new.replace(/\s+/g, ' ').trim().slice(0, 40);
-    if (((r as any).quality?.fit ?? r.match.score) < 0.5) notes.push(`Att titta på: "${snippet}" – typsnittet passar bara ungefär, så texten kan se lite annorlunda ut än resten.`);
+    const alnum = (snippet.match(/[\p{L}\p{N}]/gu) ?? []).length; // (a short text such as a unit or a number gives too little to judge a typeface by)
+    if (alnum >= 6 && ((r as any).quality?.fit ?? r.match.score) < 0.45) notes.push(`Att titta på: "${snippet}" – typsnittet passar bara ungefär, så texten kan se lite annorlunda ut än resten.`);
     if ((r.shrunk ?? 1) < 0.8) notes.push(`Att titta på: "${snippet}" fick krympas ganska mycket (${Math.round((r.shrunk ?? 1) * 100)} %) för att få plats.`);
   }
   return notes;

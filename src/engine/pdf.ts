@@ -294,7 +294,7 @@ export async function writePdf(original: Uint8Array, img: PageImage, edited: Ras
     // Tz scales the spacing too, so the spacing is given before scaling
     page.pushOperators(pushGraphicsState(), setCharacterSpacing((it.tracking * scale) / hs), setCharacterSqueeze(hs * 100));
     if (bold > 0) page.pushOperators(setTextRenderingMode(TextRenderingMode.FillAndOutline), setLineWidth(bold * scale), setLineJoin(LineJoinStyle.Round), setStrokingRgbColor(col.red, col.green, col.blue));
-    page.drawText(it.text, { x, y, size: it.size * scale, font: f, color: col, ...(it.slant ? { xSkew: degrees((Math.atan(it.slant) * 180) / Math.PI) } : {}) });
+    page.drawText(it.text, { x, y, size: it.size * scale, font: f, color: col, ...(it.slant ? { ySkew: degrees((Math.atan(it.slant) * 180) / Math.PI) } : {}) });
     page.pushOperators(popGraphicsState());
   }
   doc.setProducer('PDF-ändraren');
