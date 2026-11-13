@@ -1063,12 +1063,14 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
 
   // ---- Every text edit is checked before it is accepted; a bad result is redone another way ----
   let retriesLeft = 60; // per page: keeps a page with very many edits fast
+  let readsLeft = 40; // read-backs (OCR) per page: the same
   const peers: Peer[] = []; // well-fitted edits so far: a disturbed fit can borrow their typeface and size
   const checkedRun = async (i: number, e0: TextEdit): Promise<void> => {
     const lineBoxes = (e0.boxes?.length ? e0.boxes : e0.lines.map((id) => ocr.find((o) => o.id === id)?.box)).filter(Boolean) as Box[];
     if (!lineBoxes.length || !e0.new.trim()) { await runEdit(i, e0); return; }
     const ub = unionBox(lineBoxes), uw = ub.x1 - ub.x0, uh = ub.y1 - ub.y0;
-    const reg = clampBox({ x0: ub.x0 - Math.max(80, uw * 1.5), x1: ub.x1 + Math.max(80, uw * 1.5), y0: ub.y0 - Math.max(30, uh * 1.5), y1: ub.y1 + Math.max(30, uh * 1.5) }, out);
+    const padX = Math.max(80, uw * 1.5, out.w * 0.45); // (a text may grow far sideways: the undo area must cover where it can end up)
+    const reg = clampBox({ x0: ub.x0 - padX, x1: ub.x1 + padX, y0: ub.y0 - Math.max(30, uh * 1.5), y1: ub.y1 + Math.max(30, uh * 1.5) }, out);
     const base0 = cropRaster(out, reg);
     const markItems = items.length, markReports = reports.length;
     type Attempt = { e: TextEdit; align: 'left' | 'center' | 'right'; q: Quality; crop: Raster; items: TextItem[]; reports: EditReport[]; family: string; weight: number; ranking: string[] };
@@ -1088,7 +1090,8 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
       const kept: TextItem[] = [];
       for (const it of fresh) { if (it.raster) await rasterizeInto(out, it, lib, (it as any).ref); else kept.push(it); }
       items.length = markItems; items.push(...kept);
-      if (opts.readBack && !e.new.includes('\n') ) {
+      if (opts.readBack && readsLeft > 0 && !e.new.includes('\n')) {
+        readsLeft--;
         try {
           // read the finished area back (vector words are drawn into a copy first) and compare with what was meant
           const view = cropRaster(out, reg);
