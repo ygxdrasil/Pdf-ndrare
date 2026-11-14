@@ -969,9 +969,31 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
           const inkW0 = info.inkBox.x1 - info.inkBox.x0;
           maxW = Math.max(maxW, inkW0 + (align === 'left' ? fr : align === 'right' ? fl : 2 * Math.min(fl, fr)));
         }
+        // A lone line that comes out much longer than the room it has: if there is free space under it, set it on two or three lines at its own size
+        // (the pitch of the neighbours' lines) instead of squeezing it down to a fraction of its size.
+        let wrapLines: string[] | null = null;
+        const lhW = size * 1.25;
+        if (!e.maxWidth && infos.length === 1 && !newL.includes('\n')) {
+          const nat = inkExtent(font, newL, size, tr, hs, info.slant);
+          if (nat.maxX - nat.minX > maxW * 1.25) {
+            const wl = wrap(font, newL, size, tr, maxW * 0.92, hs);
+            if (wl.length >= 2 && wl.length <= 3) {
+              const widest = Math.min(maxW, wl.reduce((a, t) => Math.max(a, (() => { const q = inkExtent(font, t, size, tr, hs, info.slant); return q.maxX - q.minX; })()), 0));
+              const th = Math.max(60, info.thresh * 1.5), xa = Math.max(0, Math.floor(align === 'right' ? info.inkBox.x1 - widest : align === 'center' ? (info.inkBox.x0 + info.inkBox.x1) / 2 - widest / 2 : info.inkBox.x0)), xb = Math.min(src.w, Math.ceil(xa + widest));
+              const yS = Math.ceil(info.inkBox.y1 + size * 0.15), yE = Math.min(src.h, Math.ceil(info.inkBox.y1 + (wl.length - 1) * lhW + size * 0.45));
+              let clear = yE >= yS + (wl.length - 1) * lhW;
+              for (let y = yS; y < yE && clear; y++) {
+                let hits = 0;
+                for (let x = xa; x < xb; x++) { const i = (y * src.w + x) * 4, b = info.bgAt(Math.min(Math.max(x, info.area.x0), info.area.x1 - 1), Math.min(Math.max(y, info.area.y0), info.area.y1 - 1)); if (Math.abs(src.data[i] - b[0]) + Math.abs(src.data[i + 1] - b[1]) + Math.abs(src.data[i + 2] - b[2]) > th) hits++; }
+                if (hits > 1) clear = false;
+              }
+              if (clear) { wrapLines = wl; warnings.push('Texten blev för lång för en rad och bröts på flera rader.'); }
+            }
+          }
+        }
         let k = 1;
-        let ext = inkExtent(font, newL, size, tr, hs, info.slant);
-        while (ext.maxX - ext.minX > maxW && k > 0.6) { k -= 0.02; ext = inkExtent(font, newL, size * k, tr * k, hs, info.slant); }
+        let ext = inkExtent(font, wrapLines ? wrapLines.reduce((a, b) => (b.length > a.length ? b : a), '') : newL, size, tr, hs, info.slant);
+        while (!wrapLines && ext.maxX - ext.minX > maxW && k > 0.6) { k -= 0.02; ext = inkExtent(font, newL, size * k, tr * k, hs, info.slant); }
         if (k < 0.999) warnings.push(`"${newL}" krymptes till ${Math.round(k * 100)} % för att få plats.`);
         const x0 = info.inkBox.x0, x1 = info.inkBox.x1;
         const anchorL = infos.length > 1 && align === 'left' ? blockX0 : x0;
@@ -986,13 +1008,25 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
             // a different weight is a little wider or narrower: re-place it
             const lf = await lib.load(lkey);
             ext = inkExtent(lf, newL, size * k, tr * k, hs, info.slant);
-            while (ext.maxX - ext.minX > maxW && k > 0.6) { k -= 0.02; ext = inkExtent(lf, newL, size * k, tr * k, hs, info.slant); }
+            while (!wrapLines && ext.maxX - ext.minX > maxW && k > 0.6) { k -= 0.02; ext = inkExtent(lf, newL, size * k, tr * k, hs, info.slant); }
           }
         }
         const pen2 = align === 'center' ? cx - (ext.minX + ext.maxX) / 2 : align === 'right' ? anchorR - ext.maxX : anchorL - ext.minX;
         grow(pen2 + ext.minX - 6, pen2 + ext.maxX + 6);
-        items.push({ gain: lgain, text: newL, key: lkey, size: size * k, tracking: tr * k, hs, bold: lbold * k, slant: info.slant, x: pen2, baseline: base, color: info.color } as any);
-        modes.push('line');
+        if (wrapLines) {
+          const lf2 = await lib.load(lkey);
+          wrapLines.forEach((t, li) => {
+            const ex = inkExtent(lf2, t, size, tr, hs, info.slant);
+            const px = align === 'center' ? cx - (ex.minX + ex.maxX) / 2 : align === 'right' ? anchorR - ex.maxX : anchorL - ex.minX;
+            grow(px + ex.minX - 6, px + ex.maxX + 6);
+            items.push({ gain: lgain, text: t, key: lkey, size, tracking: tr, hs, bold: lbold, slant: info.slant, x: px, baseline: base + li * lhW, color: info.color } as any);
+          });
+          touched = { ...touched, y1: Math.max(touched.y1, base + (wrapLines.length - 1) * lhW + size * 0.4) };
+          modes.push(`line-wrapped(${wrapLines.length})`);
+        } else {
+          items.push({ gain: lgain, text: newL, key: lkey, size: size * k, tracking: tr * k, hs, bold: lbold * k, slant: info.slant, x: pen2, baseline: base, color: info.color } as any);
+          modes.push('line');
+        }
       }
       reports.push({ index: i, font: `${m.family} ${m.weight}`, sizePx: +size0.toFixed(1), shrunk: 1, lines: infos.length, mode: modes.join(','), warnings, match: m, box: touched });
       return;
