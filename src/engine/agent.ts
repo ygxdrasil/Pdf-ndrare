@@ -669,6 +669,14 @@ export async function runRequest(env: AgentEnv, page: Raster, ocr: OcrLine[], re
   }
   for (const r of applied.reports) notes.push(...r.warnings);
   try { const sc = selfCheck(page, applied, edits, ocr); if (sc.length) log(`  självkontroll: ${sc.join(' | ')}`); notes.push(...sc); } catch (err: any) { log(`  självkontroll misslyckades: ${err?.message ?? err}`); }
+  // A web address or e-mail address that was changed on the page: a clickable link behind it, if the PDF has one, still points at the old address.
+  try {
+    const addr = /(www\.|https?:\/\/|[\w.-]+@[\w-]+\.)/i;
+    for (const r of applied.reports) {
+      const e = edits[r.index];
+      if (e?.kind === 'text' && r.mode !== 'skipped' && addr.test(e.old.join(' ')) && e.old.join(' ').trim() !== e.new.trim()) { notes.push('Att titta på: En webbadress eller e-postadress ändrades på sidan. Om den var en klickbar länk i PDF:en pekar länken fortfarande på den gamla adressen.'); break; }
+    }
+  } catch { /* the note is optional */ }
   usage.ms = Date.now() - t0;
   return { applied, edits, summary: asText(plan.summary), usage, notes };
 }
