@@ -821,12 +821,12 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
           // weight: the one whose redrawing of a kept word of this line is as dark as the real one
           const keptIdx = [...Array(p).keys(), ...Array.from({ length: s }, (_, k) => ow.length - s + k)].filter((k) => ow[k].replace(/[^\p{L}\p{N}]/gu, '').length >= 3);
           const kk = nb !== undefined && ow[nb].replace(/[^\p{L}\p{N}]/gu, '').length >= 2 ? nb : keptIdx.sort((a, b) => ow[b].length - ow[a].length)[0];
-          let key = fm.key;
+          let key = fm.key, wGain = 1;
           // the weight of the words being replaced is the best evidence of the weight the new ones should have
           // (a price in bold stays bold even if the words around it are regular); kept words are the fallback
           if (!e.weight) {
-            if (midB && midTxt.replace(/[^\p{L}\p{N}]/gu, '').length >= 2) ({ key, bold: wBold } = await calibrateWeight(src, lib, fm.family, analyzeLine(src, midB), midTxt, wSize, wTr, wBase, drawColor, fm.key, wHs, wBold));
-            else if (kk !== undefined) ({ key, bold: wBold } = await calibrateWeight(src, lib, fm.family, analyzeLine(src, wb[kk]), ow[kk], wSize, wTr, wBase, drawColor, fm.key, wHs, wBold));
+            if (midB && midTxt.replace(/[^\p{L}\p{N}]/gu, '').length >= 2) { const cw = await calibrateWeight(src, lib, fm.family, analyzeLine(src, midB), midTxt, wSize, wTr, wBase, drawColor, fm.key, wHs, wBold); key = cw.key; wBold = cw.bold; wGain = cw.gain ?? 1; }
+            else if (kk !== undefined) { const cw = await calibrateWeight(src, lib, fm.family, analyzeLine(src, wb[kk]), ow[kk], wSize, wTr, wBase, drawColor, fm.key, wHs, wBold); key = cw.key; wBold = cw.bold; wGain = cw.gain ?? 1; }
           }
           const kfont = await lib.load(key);
           const wSl = info.slant ?? 0; // italic lines stay italic
@@ -929,7 +929,7 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
                 const bb = clampBox(padBox(unionBox([info.area, midInfo.area]), 6), out);
                 const bak = cropRaster(out, bb);
                 for (const q of parts) eraseLine(out, src, q.info);
-                const its = parts.map((q) => ({ text: q.text, key, size: wSize, tracking: wTr, hs: wHs, bold: wBold, slant: wSl, x: q.x, baseline: wBase, color: drawColor, raster: true, ref: q.info }));
+                const its = parts.map((q) => ({ gain: wGain, text: q.text, key, size: wSize, tracking: wTr, hs: wHs, bold: wBold, slant: wSl, x: q.x, baseline: wBase, color: drawColor, raster: true, ref: q.info }));
                 let badP = false;
                 for (let q = 0; q < its.length && !badP; q++) if ((await overlapRatio(out, src, its[q] as any, lib, parts[q].info.area)) > 0.1) badP = true;
                 if (!badP) { items.push(...(its as any[])); modes.push(`words-parts(${parts.length})`); continue; }
@@ -940,7 +940,7 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
           if (midInfo) eraseLine(out, src, midInfo);
           if (preInfo && Math.abs(shiftPre) >= 0.5) { eraseLine(out, src, preInfo); pasteInk(out, src, preInfo, shiftPre); movedRec.push({ info: preInfo, dx: shiftPre }); }
           if (sufInfo && Math.abs(shiftSuf) >= 0.5) { eraseLine(out, src, sufInfo); pasteInk(out, src, sufInfo, shiftSuf); movedRec.push({ info: sufInfo, dx: shiftSuf }); }
-          const wordItem = midNew ? { text: midNew, key, size: wSize, tracking: wTr, hs: wHs, bold: wBold, slant: wSl, x: placeX - ext.minX, baseline: wBase, color: drawColor, raster: true, ref: midInfo ?? preInfo ?? sufInfo ?? info } : null;
+          const wordItem = midNew ? { gain: wGain, text: midNew, key, size: wSize, tracking: wTr, hs: wHs, bold: wBold, slant: wSl, x: placeX - ext.minX, baseline: wBase, color: drawColor, raster: true, ref: midInfo ?? preInfo ?? sufInfo ?? info } : null;
           // Safety net: if old letters are still under the new word (a word box that missed part of them),
           // undo this and set the whole line instead, which clears everything.
           // ...also old ink left between the kept words on either side of the new word (a word box that cut the letters)
@@ -979,9 +979,9 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
         const cx = infos.length > 1 && align === 'center' ? (blockX0 + blockX1) / 2 : (x0 + x1) / 2;
         const pen = align === 'center' ? cx - (ext.minX + ext.maxX) / 2 : align === 'right' ? anchorR - ext.maxX : anchorL - ext.minX;
         // weight: as dark as the old line was (unless Claude asked for a weight)
-        let lkey = m.key, lbold = bold;
+        let lkey = m.key, lbold = bold, lgain = 1;
         if (!e.weight && oldL.replace(/[^\p{L}\p{N}]/gu, '').length >= 3) {
-          ({ key: lkey, bold: lbold } = await calibrateWeight(src, lib, m.family, info, oldL, size, tr, base, info.color, m.key, hs, bold));
+          { const cw = await calibrateWeight(src, lib, m.family, info, oldL, size, tr, base, info.color, m.key, hs, bold); lkey = cw.key; lbold = cw.bold; lgain = cw.gain ?? 1; }
           if (lkey !== m.key) {
             // a different weight is a little wider or narrower: re-place it
             const lf = await lib.load(lkey);
@@ -991,7 +991,7 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
         }
         const pen2 = align === 'center' ? cx - (ext.minX + ext.maxX) / 2 : align === 'right' ? anchorR - ext.maxX : anchorL - ext.minX;
         grow(pen2 + ext.minX - 6, pen2 + ext.maxX + 6);
-        items.push({ text: newL, key: lkey, size: size * k, tracking: tr * k, hs, bold: lbold * k, slant: info.slant, x: pen2, baseline: base, color: info.color });
+        items.push({ gain: lgain, text: newL, key: lkey, size: size * k, tracking: tr * k, hs, bold: lbold * k, slant: info.slant, x: pen2, baseline: base, color: info.color } as any);
         modes.push('line');
       }
       reports.push({ index: i, font: `${m.family} ${m.weight}`, sizePx: +size0.toFixed(1), shrunk: 1, lines: infos.length, mode: modes.join(','), warnings, match: m, box: touched });
@@ -1175,7 +1175,7 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
 }
 
 /** Pick the weight (within one family) whose redrawing of an existing word looks most like the real one. */
-async function calibrateWeight(src: Raster, lib: FontLib, family: string, kw: LineInfo, text: string, size: number, tr: number, base: number, color: RGB, fallback: string, hs = 1, bold0 = 0): Promise<{ key: string; bold: number }> {
+async function calibrateWeight(src: Raster, lib: FontLib, family: string, kw: LineInfo, text: string, size: number, tr: number, base: number, color: RGB, fallback: string, hs = 1, bold0 = 0): Promise<{ key: string; bold: number; gain?: number }> {
   const fams = lib.entries.filter((x) => x.family === family);
   // each real weight as is, and slightly thickened (for families without the in-between weight)
   const cands: { key: string; bold: number; w?: number }[] = [];
@@ -1207,7 +1207,7 @@ async function calibrateWeight(src: Raster, lib: FontLib, family: string, kw: Li
   }
   const target = Math.abs(tsum);
   if (target <= 0) return { key: fallback, bold: bold0 };
-  let best = { key: fallback, bold: bold0 }, bestErr = Infinity;
+  let best: { key: string; bold: number; gain?: number } = { key: fallback, bold: bold0 }, bestErr = Infinity;
   for (const c of cands) {
     const font = await lib.load(c.key);
     const ext = inkExtent(font, text, size, tr, hs);
@@ -1216,7 +1216,9 @@ async function calibrateWeight(src: Raster, lib: FontLib, family: string, kw: Li
     // a real weight is preferred over a thickened one when both are about as dark
     // total darkness depends on size and spacing as much as on weight, so small errors there pass for "heavier": a light pull toward a regular weight keeps only clearly bold words bold
     const err = Math.abs(Math.log(Math.max(1, Math.abs(dark(t))) / target)) + (size >= 30 ? 2 : 0.5) * (c.bold / Math.max(1, size)) + (size >= 30 ? 0.02 : 0.06) * (Math.max(0, (c.w ?? 400) - 450) / 100);
-    if (err < bestErr) { bestErr = err; best = c; }
+    // small text: what is still missing in darkness after the best real weight is made up by a gain on the letters' coverage (strokes of a few pixels render lighter than the original's)
+    const gain = size < 30 ? Math.max(1, Math.min(1.8, target / Math.max(1, Math.abs(dark(t))))) : 1;
+    if (err < bestErr) { bestErr = err; best = { key: c.key, bold: c.bold, gain }; }
   }
   return best;
 }
@@ -1251,6 +1253,8 @@ export async function rasterizeInto(dst: Raster, it: TextItem, lib: FontLib, ref
   const gc = await glyphCoverage(it, lib);
   if (!gc) return;
   const { x0, y0, W, H, cov } = gc;
+  const inkGain = (it as any).gain as number | undefined;
+  if (inkGain && inkGain > 1.01) for (let k = 0; k < cov.length; k++) cov[k] = Math.min(1, cov[k] * inkGain);
   // a light blur like the original
   const blur = (c: Float32Array) => {
     const o = new Float32Array(W * H);
