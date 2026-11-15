@@ -407,6 +407,12 @@ export function resolveLine(ocr: OcrLine[], l: OcrLine | undefined, oldText: str
       if (c.score > best.score + 0.15) best = c;
     }
   }
+  // a list marker (a lone bullet/dash glyph) in front of the line is not part of the text: it stays
+  const bl = best.line, w0 = bl.words ?? [];
+  if (w0.length > 1 && !/[\p{L}\p{N}]/u.test(w0[0].text) && w0[0].text.length <= 2 && !/^[^\p{L}\p{N}]/u.test(oldText.trim())) {
+    const rest = w0.slice(1);
+    return { ...bl, text: rest.map((w) => w.text).join(' '), box: unionBox(rest.map((w) => w.box)), words: rest };
+  }
   return best.line;
 }
 
