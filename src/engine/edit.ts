@@ -534,7 +534,10 @@ async function measureQuality(src: Raster, pre: Raster, reg: Box, fresh: TextIte
   // size: the size the new letters were set at against the size of the old line (a text squeezed down to fit is far smaller)
   const hNew = fresh.length ? sizeNew : sizeOld, hOld = sizeOld; // (nothing was drawn, e.g. an unchanged line: nothing to compare)
   // letters squeezed or stretched (or spaced very tight/loose) to fit an old line that the typeface doesn't really match
-  const hs = median(m.lines.map((l) => l.hs ?? 1)), trk = median(m.lines.map((l) => Math.abs(l.tracking) / Math.max(1, l.size)));
+  const hs = median(m.lines.map((l) => l.hs ?? 1));
+  // wide letter-spacing with undistorted letters is how the line was designed (spaced capitals), not a squeeze to fit
+  const trkS = median(m.lines.map((l) => l.tracking / Math.max(1, l.size)));
+  const trk = (trkS > 0 && Math.abs(Math.log(hs)) < 0.06) ? 0 : median(m.lines.map((l) => Math.abs(l.tracking) / Math.max(1, l.size)));
   const squeeze = Math.max(Math.abs(Math.log(hs)), trk * 3);
   return { collision, weight, fit: m.score, sizeRatio: hNew / hOld, side, squeeze };
 }
