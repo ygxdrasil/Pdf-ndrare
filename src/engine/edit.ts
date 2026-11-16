@@ -143,6 +143,46 @@ function freeRun(src: Raster, ink: Box, x: number, dir: 1 | -1, lim: number, thr
   return lim;
 }
 
+
+let pendingLeader: { info: LineInfo; from: number; stop: number } | null = null; // a dot leader ("Pasta ........ 129 kr") the new text may grow over
+
+/** A leader of dots after x (low in the line, many separate dots, then taller ink or the end): where the tall ink after it starts. */
+function leaderAhead(src: Raster, info: LineInfo, x: number, lim: number, thresh: number): number | null {
+  const b = info.inkBox, h = b.y1 - b.y0;
+  const yTop = Math.max(0, Math.round(b.y0 - 2)), yMid = Math.round(b.y0 + h * 0.5), yBot = Math.min(src.h, Math.round(b.y1 + 3));
+  const ink = (xx: number, y0: number, y1: number) => { for (let y = y0; y < y1; y++) { const g = info.bgAt(Math.min(Math.max(xx, info.area.x0), info.area.x1 - 1), Math.min(Math.max(y, info.area.y0), info.area.y1 - 1)), i = (y * src.w + xx) * 4; if (Math.abs(src.data[i] - g[0]) + Math.abs(src.data[i + 1] - g[1]) + Math.abs(src.data[i + 2] - g[2]) > Math.max(thresh, 60)) return true; } return false; };
+  let groups = 0, prev = false, stop = -1;
+  for (let d = 0; d <= lim; d++) {
+    const xx = Math.round(x + d);
+    if (xx >= src.w) { stop = src.w; break; }
+    if (ink(xx, yTop, yMid)) { stop = xx; break; } // taller ink: the end of the leader
+    const low = ink(xx, yMid, yBot);
+    if (low && !prev) groups++;
+    prev = low;
+  }
+  return groups >= 6 && stop > 0 ? stop : null;
+}
+
+function eraseLeader(out: Raster, xEnd: number, size: number) {
+  const L = pendingLeader; if (!L || xEnd <= L.from) return;
+  const b = L.info.inkBox, h = b.y1 - b.y0, A = L.info.area;
+  const y0 = Math.max(0, Math.round(b.y0 + h * 0.5)), y1 = Math.min(out.h, Math.round(b.y1 + 3)), x1 = Math.min(Math.round(xEnd + size * 0.3), L.stop - 1);
+  for (let y = y0; y < y1; y++) for (let x = Math.round(L.from) + 1; x <= x1 && x < out.w; x++) {
+    const g = L.info.bgAt(Math.min(Math.max(x, A.x0), A.x1 - 1), Math.min(Math.max(y, A.y0), A.y1 - 1)), i = (y * out.w + x) * 4;
+    out.data[i] = g[0]; out.data[i + 1] = g[1]; out.data[i + 2] = g[2];
+  }
+}
+
+/** freeRun that also counts a dot leader as free room (it is erased under the new text). */
+function freeWithLeader(src: Raster, info: LineInfo, ink: Box, x: number, dir: 1 | -1, lim: number, thresh: number): number {
+  const f = freeRun(src, ink, x, dir, lim, thresh);
+  if (dir !== 1 || f >= lim) return f;
+  const stop = leaderAhead(src, info, x + f + 1, src.w, thresh);
+  if (stop === null) return f;
+  pendingLeader = { info, from: x, stop };
+  return stop - x;
+}
+
 function wrap(font: any, text: string, size: number, tracking: number, maxW: number, hs = 1): string[] {
   const out: string[] = [];
   for (const para of text.split('\n')) {
@@ -473,7 +513,7 @@ async function overlapRatio(out: Raster, src: Raster, it: { text: string; key: s
 // ---------------------------------------------------------------------------
 // Result checks
 // ---------------------------------------------------------------------------
-export interface Quality { collision: number; weight: number; fit: number; sizeRatio: number; side: number; squeeze: number; read?: number }
+export interface Quality { collision: number; weight: number; fit: number; sizeRatio: number; side: number; squeeze: number; spaced?: boolean; read?: number }
 
 /** Stroke thickness of a soft ink mask: 2 x area / perimeter (the perimeter is the total variation, so blur doesn't change it). */
 function strokeThickness(cov: ArrayLike<number>, W: number, H: number): number {
@@ -553,11 +593,11 @@ async function measureQuality(src: Raster, pre: Raster, reg: Box, fresh: TextIte
   const hNew = fresh.length ? sizeNew : sizeOld, hOld = sizeOld; // (nothing was drawn, e.g. an unchanged line: nothing to compare)
   // letters squeezed or stretched (or spaced very tight/loose) to fit an old line that the typeface doesn't really match
   const hs = median(m.lines.map((l) => l.hs ?? 1));
-  // wide letter-spacing with undistorted letters is how the line was designed (spaced capitals), not a squeeze to fit
+  // wide letter-spacing is how the line was designed (spaced capitals), not a squeeze to fit (stretched or squeezed letters are counted by hs)
   const trkS = median(m.lines.map((l) => l.tracking / Math.max(1, l.size)));
-  const trk = (trkS > 0 && Math.abs(Math.log(hs)) < 0.06) ? 0 : median(m.lines.map((l) => Math.abs(l.tracking) / Math.max(1, l.size)));
+  const trk = trkS > 0 ? 0 : median(m.lines.map((l) => Math.abs(l.tracking) / Math.max(1, l.size)));
   const squeeze = Math.max(Math.abs(Math.log(hs)), trk * 3);
-  return { collision, weight, fit: m.score, sizeRatio: hNew / hOld, side, squeeze };
+  return { collision, weight, fit: m.score, sizeRatio: hNew / hOld, side, squeeze, spaced: trkS > 0.04 };
 }
 
 /** One number for "how wrong is this": 0 is fine. */
@@ -613,7 +653,7 @@ function nextAlternative(cur: { e: TextEdit; align: 'left' | 'center' | 'right';
     for (const f of fams.slice(0, 3)) cands.push({ key: `f${f}`, e: { ...cur.e, font: f, weight: undefined } });
   }
   // letters squeezed to fit an old line the typeface doesn't match: set them at their natural width instead
-  if (q.squeeze > 0.09) cands.push({ key: 'ns', e: { ...cur.e, noSqueeze: true } });
+  if (q.squeeze > 0.09 && !(q.spaced && q.squeeze < 0.14)) cands.push({ key: 'ns', e: { ...cur.e, noSqueeze: true } }); // (deliberately spaced letters are not a squeeze to undo)
   for (const c of cands) if (!tried.has(c.key)) { tried.add(c.key); return c.e; }
   return null;
 }
@@ -681,7 +721,7 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
   let meta: { infos: LineInfo[]; m: MatchResult; align: 'left' | 'center' | 'right' } | null = null;
   let movedRec: { info: LineInfo; dx: number }[] = []; // kept words that were shifted by the current attempt
   const runEdit = async (i: number, e: TextEdit): Promise<void> => {
-    keepInk = []; partsFit = undefined;
+    keepInk = []; partsFit = undefined; pendingLeader = null;
     let ocrLines: (OcrLine | undefined)[] = e.boxes?.length ? e.boxes.map(() => undefined) : e.lines.map((id) => ocr.find((o) => o.id === id));
     if (!e.boxes?.length) ocrLines = ocrLines.map((l, k) => resolveLine(ocr, l, e.old[k] ?? ''));
     // OCR can read only part of big, thin lettering (e.g. "KVALSTERS" of "KVALSTERSKYDD"):
@@ -880,7 +920,7 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
             // A longer word needs room. Take it from wide word gaps first (justified text),
             // then from free space beside the line, never pushing into other text; only the
             // side(s) the alignment allows move. Not enough room: squeeze the word a little.
-            const free = (x: number, dir: 1 | -1) => freeRun(src, anchor.inkBox, x, dir, Math.round(wSize * 8), info.thresh);
+            const free = (x: number, dir: 1 | -1) => freeWithLeader(src, anchor, anchor.inkBox, x, dir, Math.round(wSize * 8), info.thresh);
             const keep = wSize * 0.3;
             // a word gap may close down to about one normal space, never tighter ("10,2cm²" looks glued)
             const slackR = sufInfo ? Math.max(0, sufInfo.inkBox.x0 - oldX1 - space * 0.95) : 0;
@@ -1011,7 +1051,7 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
             pasteRaster(out, backup, backupBox.x0, backupBox.y0);
             warnings.push('Ordet lades om som hel rad för att inga rester av den gamla texten skulle stå kvar.');
           } else {
-            if (wordItem) items.push(wordItem as any);
+            if (wordItem) { eraseLeader(out, placeX + ext.maxX, wSize); items.push(wordItem as any); }
             grow(Math.min(placeX + ext.minX, preInfo ? preInfo.area.x0 + shiftPre : 1e9) - 6, Math.max(placeX + ext.maxX, sufInfo ? sufInfo.area.x1 + shiftSuf : -1e9) + 6);
             modes.push(`words(${p},${s})`);
             continue;
@@ -1022,7 +1062,7 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
         let maxW = e.maxWidth ?? Math.max(info.inkBox.x1 - info.inkBox.x0, (blockX1 - blockX0) * (infos.length > 1 ? 1 : 1.0));
         if (!e.maxWidth && infos.length === 1) {
           // a lone line (a heading, a name) may grow into the free space beside it
-          const free = (x: number, dir: 1 | -1) => freeRun(src, info.inkBox, x, dir, Math.round(size * (align === 'left' ? 4 : 14)), info.thresh); // (a centred or right-aligned heading may grow further than a left-aligned label)
+          const free = (x: number, dir: 1 | -1) => freeWithLeader(src, info, info.inkBox, x, dir, Math.round(size * (align === 'left' ? 4 : 14)), info.thresh); // (a centred or right-aligned heading may grow further than a left-aligned label)
           const keep = size * 0.4;
           const fr = Math.max(0, free(info.inkBox.x1, 1) - keep), fl = Math.max(0, free(info.inkBox.x0, -1) - keep);
           const inkW0 = info.inkBox.x1 - info.inkBox.x0;
@@ -1072,6 +1112,7 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
         }
         const pen2 = align === 'center' ? cx - (ext.minX + ext.maxX) / 2 : align === 'right' ? anchorR - ext.maxX : anchorL - ext.minX;
         grow(pen2 + ext.minX - 6, pen2 + ext.maxX + 6);
+        if (!wrapLines && align === 'left') eraseLeader(out, pen2 + ext.maxX, size);
         if (wrapLines) {
           const lf2 = await lib.load(lkey);
           wrapLines.forEach((t, li) => {
