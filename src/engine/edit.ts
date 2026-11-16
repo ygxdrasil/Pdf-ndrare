@@ -728,7 +728,7 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
           return best ? (await matchFont(lib, [best], { style: e.style ?? 'any' })).family : '';
         })();
         if (pageFamily && pageFamily !== m.family) {
-          try { const alt = await matchFont(lib, pairs, { families: [pageFamily] }); if (alt.score > m.score - 0.15) m = alt; } catch { /* the page family can't write it */ }
+          try { const alt = await matchFont(lib, pairs, { families: [pageFamily] }); if (alt.score > m.score - (letters < 4 ? 0.35 : 0.15)) m = alt; } catch { /* the page family can't write it */ } // (digits only: next to no evidence of their own)
         }
       }
     }
