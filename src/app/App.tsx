@@ -6,6 +6,24 @@ import type { Box, Raster } from '../engine/raster';
 import type { FontLib } from '../engine/fonts';
 import { callClaude, codec, encodeForClaude, inArtifact, initArtifactRuntime, makeLib, ocrPage, ocrRegion, readText, rasterToCanvas, saveFile } from './browser';
 
+type Palette = 'standard' | 'midnatt' | 'elfenben' | 'skiffer';
+const PALETTES: { key: Palette; name: string }[] = [
+  { key: 'standard', name: 'Standard' }, { key: 'midnatt', name: 'Midnatt – marinblått och guld' },
+  { key: 'elfenben', name: 'Elfenben – varmt vitt och vinrött' }, { key: 'skiffer', name: 'Skiffer – grafit och turkos' },
+];
+function loadPalette(): Palette { try { const p = localStorage.getItem('pdfa-palette') as Palette | null; return PALETTES.some((x) => x.key === p) ? p! : 'standard'; } catch { return 'standard'; } }
+function applyPalette(p: Palette) { if (p === 'standard') document.documentElement.removeAttribute('data-palette'); else document.documentElement.setAttribute('data-palette', p); }
+applyPalette(loadPalette());
+function PaletteSwitch() {
+  const [cur, setCur] = useState<Palette>(loadPalette);
+  const pick = (p: Palette) => { setCur(p); applyPalette(p); try { localStorage.setItem('pdfa-palette', p); } catch { /* not saved: still applied */ } };
+  return (
+    <div className="palette" role="group" aria-label="Färgtema">
+      {PALETTES.map((x) => <button key={x.key} type="button" className={`sw-${x.key}`} title={x.name} aria-label={x.name} aria-pressed={cur === x.key} onClick={() => pick(x.key)} />)}
+    </div>
+  );
+}
+
 type ModelKey = 'opus' | 'sonnet';
 const MODELS: Record<ModelKey, { id: string; name: string; hint: string }> = {
   opus: { id: 'claude-opus-5-5', name: 'Opus – svår', hint: 'Bäst kvalitet. För stora omskrivningar och knepiga ändringar. Lite långsammare.' },
@@ -154,6 +172,7 @@ export default function App() {
   if (!file || !v)
     return (
       <div className="start">
+        <PaletteSwitch />
         <h1>PDF-ändraren</h1>
         <p>Ändra text i dina etiketter och förpackningar. Ladda upp PDF:en eller bilden så börjar vi.</p>
         <label className={`drop ${busy ? 'busy' : ''}`}
@@ -182,6 +201,7 @@ export default function App() {
     <div className="app">
       <header>
         <h1>PDF-ändraren</h1>
+        <PaletteSwitch />
         <span className="fname">{file.name}.{file.image.mode === 'image' ? (file.image.format === 'png' ? 'png' : 'jpg') : 'pdf'}</span>
         <div className="seg" role="tablist">
           {(['after', 'before', 'both'] as const).map((k) => (
