@@ -422,6 +422,21 @@ export function resolveLine(ocr: OcrLine[], l: OcrLine | undefined, oldText: str
  * text on top of it rather than in its pixels.
  */
 
+
+/** An underline below a group of words: its rows and how far it runs to the right of the group's own ink (null if none). */
+function underlineOf(src: Raster, info: LineInfo, size: number): { ya: number; yb: number; runX1: number } | null {
+  const b = info.inkBox, h = b.y1 - b.y0, gx0 = b.x0, gx1 = b.x1;
+  const far = (x: number, y: number) => { const g = info.bgAt(x, y), i = (y * src.w + x) * 4; return Math.abs(src.data[i] - g[0]) + Math.abs(src.data[i + 1] - g[1]) + Math.abs(src.data[i + 2] - g[2]) > 120; };
+  const rowCov = (y: number, x0: number, x1: number) => { let n = 0; for (let x = x0; x < x1; x++) if (far(x, y)) n++; return n / Math.max(1, x1 - x0); };
+  const yTop = Math.round(b.y0 + h * 0.6), yBot = Math.min(src.h - 1, Math.round(b.y1 + size * 0.25));
+  let ya = -1, yb = -1;
+  for (let y = yTop; y <= yBot; y++) { if (rowCov(y, gx0, Math.min(src.w, gx1)) >= 0.75) { if (ya < 0) ya = y; yb = y; } else if (ya >= 0) break; }
+  if (ya < 0 || yb - ya > size * 0.15 + 2) return null;
+  const ym = (ya + yb) >> 1; let x = Math.min(src.w - 1, gx1), gap = 0;
+  while (x < src.w - 1 && gap <= size * 0.12) { x++; if (far(x, ym)) gap = 0; else gap++; }
+  return { ya, yb, runX1: x - gap };
+}
+
 /** Number of ink pixels (clearly different from the surface) in a box of `out`. */
 function inkCount(out: Raster, src: Raster, b: Box, ref: Box): number {
   const mode = surfaceModel(src, ref).mode;
@@ -478,6 +493,8 @@ function strokeThickness(cov: ArrayLike<number>, W: number, H: number): number {
  *  fit       - how well the chosen typeface matched the old line (0..1)
  *  side      - where a collision is (-1 left .. 1 right), to pick a better alignment
  */
+let partsFit: number | undefined; // fit of the changed parts' own letters (the whole line's fit is low when its styles are mixed)
+let keepInk: Box[] = []; // ink that stays on purpose under new text (an underline), not foreign ink
 async function measureQuality(src: Raster, pre: Raster, reg: Box, fresh: TextItem[], infos: LineInfo[], m: MatchResult, lib: FontLib, moved: { info: LineInfo; dx: number }[] = [], midRef?: LineInfo): Promise<Quality> {
   const ref = infos[0];
   const T = Math.max(60, ref.thresh * 1.5);
@@ -492,6 +509,7 @@ async function measureQuality(src: Raster, pre: Raster, reg: Box, fresh: TextIte
     if (t > 0) { thickN += t * sum; thickW += sum; }
     const inkAt = (X: number, Y: number): boolean => {
       if (X < reg.x0 || X >= reg.x1 || Y < reg.y0 || Y >= reg.y1) return false;
+      if (keepInk.some((k) => X >= k.x0 && X <= k.x1 && Y >= k.y0 && Y <= k.y1)) return false;
       const p = pre.data, i = ((Y - reg.y0) * pre.w + (X - reg.x0)) * 4;
       const b = ref.bgAt(Math.min(Math.max(X, A.x0), A.x1 - 1), Math.min(Math.max(Y, A.y0), A.y1 - 1));
       return Math.abs(p[i] - b[0]) + Math.abs(p[i + 1] - b[1]) + Math.abs(p[i + 2] - b[2]) > T;
@@ -663,6 +681,7 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
   let meta: { infos: LineInfo[]; m: MatchResult; align: 'left' | 'center' | 'right' } | null = null;
   let movedRec: { info: LineInfo; dx: number }[] = []; // kept words that were shifted by the current attempt
   const runEdit = async (i: number, e: TextEdit): Promise<void> => {
+    keepInk = []; partsFit = undefined;
     let ocrLines: (OcrLine | undefined)[] = e.boxes?.length ? e.boxes.map(() => undefined) : e.lines.map((id) => ocr.find((o) => o.id === id));
     if (!e.boxes?.length) ocrLines = ocrLines.map((l, k) => resolveLine(ocr, l, e.old[k] ?? ''));
     // OCR can read only part of big, thin lettering (e.g. "KVALSTERS" of "KVALSTERSKYDD"):
@@ -921,27 +940,58 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
           if (!opts.vectorOnly && midInfo && midNew && info.noise < 5) {
             const oldM = ow.slice(p, ow.length - s), newM = nw.slice(p, nw.length - s);
             const changed = oldM.length === newM.length ? oldM.map((w, j) => !same(w, newM[j])) : [];
-            if (oldM.length === newM.length && oldM.length >= 3 && Math.abs(delta) < Math.max(1.5, wSize * 0.06) && changed[0] && changed[changed.length - 1] && changed.includes(false)) {
+            if (oldM.length === newM.length && oldM.length >= 3 && (Math.abs(delta) < Math.max(1.5, wSize * 0.06) || (!sufInfo && align === 'left')) && changed[0] && changed[changed.length - 1] && changed.includes(false)) {
               const origin = oldX0 - ext.minX;
               const startOf = (j: number) => origin + (j ? inkExtent(kfont, newM.slice(0, j).join(' ') + ' ', wSize, wTr, wHs, wSl).adv : 0);
-              let ok = true;
               const runs: [number, number][] = [];
-              for (let j = 0; j < oldM.length && ok; j++) {
-                if (!changed[j]) {
-                  const bi = analyzeLine(src, inLine([midOld[j]]));
-                  const ie = inkExtent(kfont, newM[j], wSize, wTr, wHs, wSl);
-                  if (Math.abs(startOf(j) + ie.minX - bi.inkBox.x0) > Math.max(2, wSize * 0.04)) ok = false;
-                } else if (j === 0 || !changed[j - 1]) runs.push([j, j]); else runs[runs.length - 1][1] = j;
+              for (let j = 0; j < oldM.length; j++) if (changed[j]) { if (j === 0 || !changed[j - 1]) runs.push([j, j]); else runs[runs.length - 1][1] = j; }
+              // each changed part is set in the look of the old words it replaces (a bold price, an italic note ... in one line)
+              // and has to fit where they stood, since the unchanged words between them stay as the original pixels
+              let ok = true;
+              const parts: { text: string; x: number; info: LineInfo; key: string; bold: number; gain: number; fit: number; size: number; tr: number; hs: number; base: number }[] = [];
+              for (let qi = 0; qi < runs.length && ok; qi++) {
+                const [ra, rb] = runs[qi];
+                const oldT = oldM.slice(ra, rb + 1).join(' '), newT = newM.slice(ra, rb + 1).join(' ');
+                // (reach out to the neighbouring words, so a stray character the word box missed goes too)
+                const gb = inLine(midOld.slice(ra, rb + 1)), prevW = ra > 0 ? midOld[ra - 1] : pre[pre.length - 1], nextW = rb + 1 < midOld.length ? midOld[rb + 1] : suf[0];
+                if (prevW && prevW.x1 + 1 < gb.x0) gb.x0 = Math.max(prevW.x1 + 1, gb.x0 - wSize * 0.8);
+                if (nextW && nextW.x0 - 1 > gb.x1) gb.x1 = Math.min(nextW.x0 - 1, gb.x1 + wSize * 0.8);
+                const qinfo = rows(analyzeLine(src, gb));
+                let gscore = 1; let pk = key, pb = wBold, pg = wGain, ps = wSize, ptr = wTr, phs = wHs, pbase = wBase;
+                // the group's own ink gives its own size and spacing (a bold price in a regular line is not set like the rest)
+                if (oldT.replace(/[^\p{L}\p{N}]/gu, '').length >= 3) {
+                  const gf = await matchFont(lib, [{ info: qinfo, text: oldT }], { families: [fm.family] });
+                  if (gf.lines[0] && gf.score > 0.3) { gscore = gf.score; const L0 = gf.lines[0]; ps = L0.size * (e.sizeScale ?? 1); ptr = L0.tracking * (e.sizeScale ?? 1); phs = L0.hs; pbase = L0.baseline; pb = L0.bold * (e.sizeScale ?? 1); }
+                }
+                if (!e.weight && oldT.replace(/[^\p{L}\p{N}]/gu, '').length >= 2) { const cw = await calibrateWeight(src, lib, fm.family, qinfo, oldT, ps, ptr, pbase, drawColor, fm.key, phs, pb); pk = cw.key; pb = cw.bold; pg = cw.gain ?? 1; }
+                const pe = inkExtent(await lib.load(pk), newT, ps, ptr, phs, qinfo.slant ?? wSl);
+                const oldW = qinfo.inkBox.x1 - qinfo.inkBox.x0, newWq = pe.maxX - pe.minX;
+                const tail = rb === oldM.length - 1 && !sufInfo && align === 'left'; // nothing follows: it may grow or shrink
+                const nextX = rb + 1 < midOld.length ? midOld[rb + 1].x0 : Infinity, roomR = nextX - qinfo.inkBox.x1 - space * 0.7; // the room up to the next unchanged word
+                if (!tail && (newWq - oldW > Math.max(2, roomR) || oldW - newWq > Math.max(3, wSize * 0.12))) ok = false;
+                const ul = underlineOf(src, qinfo, wSize);
+                const ulEnd = ul && Math.abs(ul.runX1 - qinfo.inkBox.x1) <= wSize * 0.3 ? ul : null; // (the group ends the underlined phrase)
+                (qinfo as any)._ul = ulEnd; (qinfo as any)._newEnd = qinfo.inkBox.x0 - pe.minX + pe.maxX;
+                parts.push({ text: newT, x: qinfo.inkBox.x0 - pe.minX, info: qinfo, key: pk, bold: pb, gain: pg, fit: gscore, size: ps, tr: ptr, hs: phs, base: pbase });
               }
               if (ok) {
-                const parts = runs.map(([a, b]) => ({ text: newM.slice(a, b + 1).join(' '), x: startOf(a), info: rows(analyzeLine(src, inLine(midOld.slice(a, b + 1)))) }));
                 const bb = clampBox(padBox(unionBox([info.area, midInfo.area]), 6), out);
                 const bak = cropRaster(out, bb);
                 for (const q of parts) eraseLine(out, src, q.info);
-                const its = parts.map((q) => ({ gain: wGain, text: q.text, key, size: wSize, tracking: wTr, hs: wHs, bold: wBold, slant: wSl, x: q.x, baseline: wBase, color: drawColor, raster: true, ref: q.info }));
+                for (const q of parts) { // an underline under the old last words ends where the new ones end
+                  const ul = (q.info as any)._ul as { ya: number; yb: number; runX1: number } | null, ne = Math.round((q.info as any)._newEnd);
+                  if (!ul) continue;
+                  keepInk.push({ x0: q.info.inkBox.x0 - 2, x1: Math.min(ne, ul.runX1) + 2, y0: ul.ya - 1, y1: ul.yb + 1 });
+                  const fromX = Math.min(ne, ul.runX1) + 1, toX = Math.max(ne, ul.runX1);
+                  for (let y = ul.ya; y <= ul.yb; y++) for (let x = fromX; x <= toX && x < out.w; x++) {
+                    const i = (y * out.w + x) * 4, c = ne > ul.runX1 ? q.info.color : q.info.bgAt(x, y);
+                    out.data[i] = c[0]; out.data[i + 1] = c[1]; out.data[i + 2] = c[2];
+                  }
+                }
+                const its: any[] = parts.map((q) => ({ gain: q.gain, text: q.text, key: q.key, size: q.size, tracking: q.tr, hs: q.hs, bold: q.bold, slant: q.info.slant ?? wSl, x: q.x, baseline: q.base, color: drawColor, raster: true, ref: q.info }));
                 let badP = false;
                 for (let q = 0; q < its.length && !badP; q++) if ((await overlapRatio(out, src, its[q] as any, lib, parts[q].info.area)) > 0.1) badP = true;
-                if (!badP) { items.push(...(its as any[])); modes.push(`words-parts(${parts.length})`); continue; }
+                if (!badP) { partsFit = Math.min(...parts.map((q) => q.fit)); items.push(...(its as any[])); modes.push(`words-parts(${parts.length})`); continue; }
                 pasteRaster(out, bak, bb.x0, bb.y0);
               }
             }
@@ -1124,7 +1174,7 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
   };
 
   // ---- Every text edit is checked before it is accepted; a bad result is redone another way ----
-  let retriesLeft = 60; // per page: keeps a page with very many edits fast
+  let retriesLeft = (typeof process !== "undefined" && process.env?.NORETRY) ? 0 : 60; // per page: keeps a page with very many edits fast
   let readsLeft = 40; // read-backs (OCR) per page: the same
   const peers: Peer[] = []; // well-fitted edits so far: a disturbed fit can borrow their typeface and size
   const checkedRun = async (i: number, e0: TextEdit): Promise<void> => {
@@ -1145,6 +1195,7 @@ export async function applyEdits(src: Raster, ocr: OcrLine[], edits: Edit[], lib
       const fresh = items.slice(markItems);
       const pre = cropRaster(out, reg); // the picture with old text gone, kept words in place, new words not yet drawn
       const q = await measureQuality(src, pre, reg, fresh, mt.infos, mt.m, lib, movedRec, (mt as any).midRef);
+      if (partsFit !== undefined) q.fit = Math.max(q.fit, partsFit);
       if (e.noSqueeze) q.squeeze = 0;
       if (e.forceSize) { q.fit = 0.8; q.sizeRatio = 1; q.weight = 1; q.squeeze = 0; } // borrowed from a trusted line: this line's own (disturbed) ink is no reference
       if (e0.weight) q.weight = 1; // a weight was asked for: it is not a flaw that it differs from the old line
