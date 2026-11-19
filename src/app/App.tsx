@@ -26,8 +26,8 @@ function PaletteSwitch() {
 
 type ModelKey = 'opus' | 'sonnet';
 const MODELS: Record<ModelKey, { id: string; name: string; hint: string }> = {
-  opus: { id: 'claude-opus-5-5', name: 'Opus – svår', hint: 'Bäst kvalitet. För stora omskrivningar och knepiga ändringar. Lite långsammare.' },
-  sonnet: { id: 'claude-sonnet-5-5', name: 'Sonnet – lätt', hint: 'Snabbare och billigare. Räcker för att byta ett ord, ett namn eller en siffra.' },
+  opus: { id: 'claude-opus-5-5', name: 'Gemini Pro – svår', hint: 'Bäst kvalitet. För stora omskrivningar och knepiga ändringar. Lite långsammare.' },
+  sonnet: { id: 'claude-sonnet-5-5', name: 'Gemini Flash – lätt', hint: 'Snabbare och billigare. Räcker för att byta ett ord, ett namn eller en siffra.' },
 };
 function loadModel(): ModelKey { try { return localStorage.getItem('pdfa-model') === 'sonnet' ? 'sonnet' : 'opus'; } catch { return 'opus'; } }
 
