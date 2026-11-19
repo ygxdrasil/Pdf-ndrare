@@ -38,7 +38,24 @@ interface Version {
   label: string;
   ocr?: OcrLine[];
 }
-interface Msg { role: 'user' | 'assistant' | 'status'; text: string; notes?: string[] }
+interface Msg { role: 'user' | 'assistant' | 'status'; text: string; notes?: string[]; advanced?: string[] }
+/** Notes that only say "the engine is not fully sure" (font fit, shrunk text, retries) are not clear faults: they sit behind "Se avancerat resultat". */
+const SOFT_NOTE = /typsnittet passar|krympt|krympas|trycktes ihop|Kontrollen är inte nöjd|lades om som hel rad|Rättat efter kontrollen|gjordes om på ett annat sätt|bröts på flera rader|tunnare än|fetare än/i;
+function MsgBody({ m }: { m: Msg }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      {m.text}
+      {m.notes?.length ? <ul>{m.notes.map((n, k) => <li key={k}>{n}</li>)}</ul> : null}
+      {m.advanced?.length ? (
+        <>
+          <button type="button" className="link adv" aria-expanded={open} onClick={() => setOpen(!open)}>{open ? 'Dölj avancerat resultat' : `Se avancerat resultat (${m.advanced.length})`}</button>
+          {open && <ul>{m.advanced.map((n, k) => <li key={k}>{n}</li>)}</ul>}
+        </>
+      ) : null}
+    </>
+  );
+}
 
 const EXAMPLES = ['Byt MARIA till SOFIA överallt', 'Ändra 50 × 60 cm till 60 × 70 cm', 'Ta bort fotnoten längst ner'];
 
@@ -110,7 +127,7 @@ export default function App() {
   async function send(text: string) {
     if (!lib || !v || !text.trim() || busy) return;
     setError(null);
-    const history = msgs.filter((m) => m.role !== 'status').slice(-6).map((m) => ({ role: m.role as 'user' | 'assistant', text: m.notes?.length ? `${m.text}\n${m.notes.join('\n')}` : m.text }));
+    const history = msgs.filter((m) => m.role !== 'status').slice(-6).map((m) => ({ role: m.role as 'user' | 'assistant', text: (m.notes?.length || m.advanced?.length) ? `${m.text}\n${[...(m.notes ?? []), ...(m.advanced ?? [])].join('\n')}` : m.text }));
     setMsgs((m) => [...m, { role: 'user', text }]);
     setInput('');
     try {
@@ -133,8 +150,8 @@ export default function App() {
         const nv: Version = { clean: res.applied.raster, items: res.applied.items, preview, label: text.slice(0, 40) };
         const list = [...versions.slice(0, cur + 1), nv];
         setVersions(list); setCur(list.length - 1); setView('after'); setMark(null);
-        const warn = res.notes.filter((n) => /krympt|får inte|Rättat|Att titta/i.test(n));
-        setMsgs((m) => [...m, { role: 'assistant', text: `${res.summary || 'Klart.'} (${Math.round(res.usage.ms / 1000)} s)`, notes: warn }]);
+        const warn = res.notes.filter((n) => /krympt|får inte|Rättat|Att titta|gjordes inte/i.test(n));
+        setMsgs((m) => [...m, { role: 'assistant', text: `${res.summary || 'Klart.'} (${Math.round(res.usage.ms / 1000)} s)`, notes: warn.filter((n) => !SOFT_NOTE.test(n)), advanced: warn.filter((n) => SOFT_NOTE.test(n)) }]);
       }
     } catch (e: any) {
       console.error(e);
@@ -226,8 +243,7 @@ export default function App() {
           <div className="msgs">
             {msgs.map((m, i) => (
               <div key={i} className={`msg ${m.role}`}>
-                {m.text}
-                {m.notes?.length ? <ul>{m.notes.map((n, k) => <li key={k}>{n}</li>)}</ul> : null}
+                <MsgBody m={m} />
               </div>
             ))}
             {busy && <div className="msg status"><span className="dot" /> {busy}</div>}

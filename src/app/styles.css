@@ -126,3 +126,5 @@ textarea { flex: 1; resize: none; padding: 10px; border-radius: 10px; border: 1p
 .palette .sw-skiffer { background: linear-gradient(135deg, #12161a 55%, #3fb8af 0); }
 .start .palette { position: fixed; top: 14px; right: 16px; }
 header .palette { margin-left: 4px; }
+
+.msg button.adv { display: block; margin-top: 6px; padding: 2px 0; font-size: 14px; }
