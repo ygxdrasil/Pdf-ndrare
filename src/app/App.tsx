@@ -3,6 +3,7 @@ import { readPage, readImage, writePdf, writeImage, pageCount, PageImage, TextIt
 import { runRequest, renderPreview } from '../engine/agent';
 import type { OcrLine } from '../engine/edit';
 import type { Box, Raster } from '../engine/raster';
+import { replacePicture, type PictureFit } from '../engine/picture';
 import type { FontLib } from '../engine/fonts';
 import { callClaude, codec, encodeForClaude, inArtifact, initArtifactRuntime, makeLib, ocrPage, ocrRegion, readText, rasterToCanvas, saveFile } from './browser';
 
@@ -69,6 +70,8 @@ export default function App() {
   const [busy, setBusy] = useState<string | null>(null);
   const [input, setInput] = useState('');
   const [mark, setMark] = useState<Box | null>(null);
+  const [fit, setFit] = useState<PictureFit>('cover');
+  const picRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [pick, setPick] = useState<{ name: string; bytes: Uint8Array; n: number } | null>(null);
   const [model, setModelState] = useState<ModelKey>(loadModel);
@@ -162,6 +165,28 @@ export default function App() {
     setBusy(null);
   }
 
+  /** Swap the picture inside the marked box for a picture file (no AI). */
+  async function swapPicture(f: File) {
+    if (!lib || !v || !mark || busy) return;
+    setError(null); setBusy('Byter bilden …');
+    try {
+      const mime = /png/i.test(f.type) || /\.png$/i.test(f.name) ? 'image/png' : 'image/jpeg';
+      const dec: any = await codec.decodeImage(new Uint8Array(await f.arrayBuffer()), mime);
+      if (dec.w * dec.h > 40e6) throw new Error('Bilden är för stor (över 40 megapixel). Spara en mindre version och försök igen.');
+      const pic = dec.rgba ? { w: dec.w, h: dec.h, data: dec.rgba } : dec;
+      const r = await replacePicture(lib, v.clean, mark, pic, fit);
+      const preview = await renderPreview({ lib }, { raster: r.raster, items: v.items } as any, v.clean.w, v.clean.h);
+      const nv: Version = { clean: r.raster, items: v.items, preview, label: 'Bytte bild', ocr: v.ocr };
+      const list = [...versions.slice(0, cur + 1), nv];
+      setVersions(list); setCur(list.length - 1); setView('after'); setMark(null);
+      setMsgs((m) => [...m, { role: 'user', text: `Byt bilden i rutan till ${f.name}` }, { role: 'assistant', text: 'Klart, bilden är bytt.', notes: r.soft ? ['Att titta på: Den nya bilden är liten och blev förstorad, så den kan se suddig ut. Använd gärna en bild med högre upplösning.'] : undefined }]);
+    } catch (e: any) {
+      console.error(e);
+      setError(/[åäöÅÄÖ]/.test(String(e?.message ?? '')) ? String(e.message) : 'Bilden gick inte att byta. Kontrollera att filen är en PNG eller JPG och försök igen.');
+    }
+    setBusy(null);
+  }
+
   async function download(i = cur) {
     if (!file || !lib) return;
     const ver = versions[i];
@@ -250,7 +275,18 @@ export default function App() {
             {error && <div className="error" role="alert">{error}</div>}
           </div>
           <ModelPick model={model} setModel={setModel} disabled={!!busy} compact />
-          {mark && <div className="markinfo">Markerat område används. <button className="link" onClick={() => setMark(null)}>Ta bort markeringen</button></div>}
+          {mark && (
+            <div className="markinfo">
+              Markerat område används.{' '}
+              <button className="link" disabled={!!busy} onClick={() => picRef.current?.click()}>Byt bild i rutan …</button>{' '}
+              <select aria-label="Hur den nya bilden placeras" value={fit} onChange={(e) => setFit(e.target.value as PictureFit)}>
+                <option value="cover">Fyll rutan</option>
+                <option value="contain">Passa in hela bilden</option>
+              </select>{' '}
+              <button className="link" onClick={() => setMark(null)}>Ta bort markeringen</button>
+              <input ref={picRef} type="file" accept="image/png,image/jpeg" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void swapPicture(f); }} />
+            </div>
+          )}
           <form onSubmit={(e) => { e.preventDefault(); send(input); }}>
             <textarea id="msg" value={input} onChange={(e) => setInput(e.target.value)} placeholder="Vad vill du ändra?" rows={3}
               onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(input); } }} disabled={!!busy} />

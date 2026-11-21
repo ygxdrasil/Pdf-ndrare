@@ -128,3 +128,5 @@ textarea { flex: 1; resize: none; padding: 10px; border-radius: 10px; border: 1p
 header .palette { margin-left: 4px; }
 
 .msg button.adv { display: block; margin-top: 6px; padding: 2px 0; font-size: 14px; }
+
+.markinfo select { padding: 2px 6px; font-size: 13px; max-width: 200px; }
